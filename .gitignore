@@ -1,0 +1,15 @@
+.env
+.env.*
+!.env.bot.example
+__pycache__/
+*.pyc
+.venv/
+data/*.sqlite3
+!data/testing.db
+data/*.log
+data/tmp/
+data/test_dbs/
+data/discord_review_files/
+data/switch_backups/
+data/tournament_hub.sqlite3
+data/tournament_hub.backup_*.sqlite3
