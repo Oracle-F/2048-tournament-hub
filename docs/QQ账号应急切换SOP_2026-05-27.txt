@@ -1,0 +1,46 @@
+QQ 账号应急切换 SOP（2026-05-27）
+
+目标：
+- 处理当天频繁掉线，快速切到新 QQ 账号并恢复 bot 服务。
+
+已完成：
+- 已备份 `.env`、主库、启动脚本。
+- 备份目录：
+  `C:\Users\oracl\Documents\Codex\2026-04-25\files-mentioned-by-the-user-score\赛事中台\data\switch_backups\qq_switch_20260527_211130`
+
+一、停服务（已执行）
+- 已停 Python bot（8080 监听进程）。
+- 已停 NapCat/QQ 壳相关进程。
+
+二、手动切号
+1) 打开：
+   `C:\NapCat\NapCat.44498.Shell\napcat.bat`
+2) 在 NapCat/QQ 登录窗口扫码新账号。
+3) 确认 NapCat 进入在线状态（不要急着开 bot）。
+
+三、启动 bot
+1) 运行：
+   `C:\Users\oracl\Documents\Codex\2026-04-25\files-mentioned-by-the-user-score\赛事中台\run_bot.bat`
+2) 启动后检查 8080 是否监听（PowerShell）：
+   `netstat -ano | findstr ":8080"`
+   预期：看到 `127.0.0.1:8080 LISTENING`。
+
+四、联通验证（建议顺序）
+1) 新账号私聊 bot 发送：`help`
+2) 再测：`我的报名`
+3) 若你有绑定账号，再测：`我的成绩`
+4) 如有锁局需求，再测：`floor` / `finish`
+
+五、异常快速排查
+1) 8080 没监听：
+   - 先确认 `run_bot.bat` 窗口没报错。
+   - 再手动重启一次 `run_bot.bat`。
+2) 有监听但私聊没回：
+   - 先看 NapCat 是否在线。
+   - 若刚换号，等 10~30 秒再试（连接重建）。
+3) 仍反复掉线：
+   - 先保持“NapCat 先起，bot 后起”。
+   - 尽量避免短时间频繁重登，降低风控触发概率。
+
+六、回滚（必要时）
+- 用备份目录中的 `.env.bak` 和 `tournament_hub.sqlite3.bak` 覆盖原文件后重启。
