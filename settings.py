@@ -14,6 +14,7 @@ EXPORTS_DIR = ROOT_DIR.parent / "比赛导出"
 ORGANIZER_EXPORTS_DIR = EXPORTS_DIR / "主办方"
 INTERIM_EXPORTS_DIR = EXPORTS_DIR / "中途排名"
 
+
 def _resolve_database_path():
     override = (os.getenv("TOURNAMENT_HUB_DB_PATH") or os.getenv("TOURNAMENT_HUB_TEST_DB_PATH") or "").strip()
     if override:
