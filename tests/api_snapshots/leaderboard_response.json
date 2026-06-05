@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "snapshot_type": "verse_leaderboard",
+  "source": "leaderboard/all",
+  "variant": "4x4",
+  "time_key": "all",
+  "page": 1,
+  "generated_at": "2026-06-02T10:00:00+08:00",
+  "leaderboard": [
+    {
+      "rank": 1,
+      "username": "snapshot_user",
+      "display_name": "Snapshot Hero",
+      "score": 54321,
+      "rating": 1800.0
+    },
+    {
+      "rank": 2,
+      "username": "rival_alpha",
+      "display_name": "Alpha",
+      "score": 43210,
+      "rating": 1792.5
+    },
+    {
+      "rank": 3,
+      "username": "rival_beta",
+      "display_name": "Beta",
+      "score": 32109,
+      "rating": 1750.25
+    }
+  ]
+}

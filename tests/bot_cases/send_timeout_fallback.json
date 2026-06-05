@@ -1,0 +1,28 @@
+[
+  {
+    "name": "send timeout fallback strips images to text",
+    "description": "验证发送超时时会优先退化成轻量文本，避免纯图片回复完全失联。",
+    "input": {
+      "target": "bot.render_send_timeout_fallback_message",
+      "args": {
+        "reply": "[CQ:image,file=help.png] 你好"
+      }
+    },
+    "expected": {
+      "reply": "你好"
+    }
+  },
+  {
+    "name": "send timeout fallback uses generic text for image only replies",
+    "description": "验证纯图片回复在发送超时时会给出轻量兜底提示。",
+    "input": {
+      "target": "bot.render_send_timeout_fallback_message",
+      "args": {
+        "reply": "[CQ:image,file=help.png]"
+      }
+    },
+    "expected": {
+      "reply": "发送失败，请稍后再试。"
+    }
+  }
+]

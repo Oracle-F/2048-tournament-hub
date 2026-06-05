@@ -1,0 +1,41 @@
+[
+  {
+    "name": "transport unstable error matches websocket close",
+    "description": "验证 WebSocket closed by peer 会被识别成传输层不稳定，避免继续发送兜底消息。",
+    "input": {
+      "target": "bot.is_transport_unstable_error",
+      "args": {
+        "message": "WebSocket closed by peer"
+      }
+    },
+    "expected": {
+      "value": true
+    }
+  },
+  {
+    "name": "transport unstable error matches websocket timeout",
+    "description": "验证 WebSocket / sendMsg 超时会被识别成传输层不稳定。",
+    "input": {
+      "target": "bot.is_transport_unstable_error",
+      "args": {
+        "message": "sendMsg Timeout on websocket call api"
+      }
+    },
+    "expected": {
+      "value": true
+    }
+  },
+  {
+    "name": "transport unstable error ignores generic exception",
+    "description": "验证普通异常不会被误判成链路不稳，便于保留其它错误处理逻辑。",
+    "input": {
+      "target": "bot.is_transport_unstable_error",
+      "args": {
+        "message": "boom"
+      }
+    },
+    "expected": {
+      "value": false
+    }
+  }
+]

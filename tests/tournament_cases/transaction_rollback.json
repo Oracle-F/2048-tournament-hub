@@ -1,0 +1,14 @@
+{
+  "name": "failed transaction does not pollute test database",
+  "description": "验证事务内抛错后会回滚，插入的临时测试数据不会留在测试库里。",
+  "input": {
+    "target": "db.transaction_rollback",
+    "args": {
+      "marker": "rollback_probe_20260602"
+    }
+  },
+  "expected": {
+    "row_exists": false,
+    "count_delta": 0
+  }
+}

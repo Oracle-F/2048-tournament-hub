@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "snapshot_type": "verse_profile",
+  "source": "leaderboard/user",
+  "variant": "4x4",
+  "username": "snapshot_user",
+  "display_name": "Snapshot Hero",
+  "generated_at": "2026-06-02T10:00:00+08:00",
+  "rating": 1800.0,
+  "rank": 12,
+  "totalGames": 3,
+  "hs": 54321,
+  "games": [
+    {
+      "id": "g9003",
+      "started_at": "2026-05-28T10:00:00Z",
+      "played_at": "2026-05-28T10:03:10Z",
+      "score": 54321,
+      "raw_score": 54321,
+      "final_score": 54321,
+      "variant": "4x4",
+      "board": [
+        [2, 4, 8, 16],
+        [32, 64, 128, 256],
+        [512, 1024, 2048, 4096],
+        [8192, 16384, 0, 0]
+      ]
+    },
+    {
+      "id": "g9002",
+      "started_at": "2026-05-27T10:00:00Z",
+      "played_at": "2026-05-27T10:02:40Z",
+      "score": 43210,
+      "raw_score": 43210,
+      "final_score": 43210,
+      "variant": "4x4",
+      "board": [
+        [2, 4, 8, 16],
+        [32, 64, 128, 256],
+        [512, 1024, 2048, 0],
+        [0, 0, 0, 0]
+      ]
+    },
+    {
+      "id": "g9001",
+      "started_at": "2026-05-26T10:00:00Z",
+      "played_at": "2026-05-26T10:02:05Z",
+      "score": 32109,
+      "raw_score": 32109,
+      "final_score": 32109,
+      "variant": "4x4",
+      "board": [
+        [2, 4, 8, 16],
+        [32, 64, 128, 0],
+        [0, 0, 0, 0],
+        [0, 0, 0, 0]
+      ]
+    }
+  ]
+}

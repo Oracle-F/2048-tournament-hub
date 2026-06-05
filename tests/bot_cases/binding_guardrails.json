@@ -1,0 +1,73 @@
+[
+  {
+    "name": "private bind rejects a verse account already claimed by another qq",
+    "description": "验证同一个 verse 账号被其他 QQ 占用时，私聊绑定会直接拒绝，防止误绑和串号。",
+    "input": {
+      "target": "bot.handle_private_message",
+      "args": {
+        "bot_user_id": "20002",
+        "text": "绑定 claimed_user 1234"
+      },
+      "seed_sql": [
+        "INSERT INTO players (id, display_name, status, created_at, updated_at) VALUES (99001, 'ClaimedUser', 'active', '2026-06-03 09:00:00', '2026-06-03 09:00:00');",
+        "INSERT INTO bot_account_bindings (id, bot_platform, bot_user_id, game_platform, player_id, account_key, display_name, is_active, metadata_json, created_at, updated_at) VALUES (99002, 'qq', '20001', '2048verse', 99001, 'claimed_user', 'claimed_user', 1, '{}', '2026-06-03 09:00:00', '2026-06-03 09:00:00');"
+      ]
+    },
+    "expected": {
+      "reply": "该 verse 账号已绑定到其他 QQ，请先解绑或联系管理员。"
+    }
+  },
+  {
+    "name": "group bind command is private only",
+    "description": "验证群里尝试绑定账号会被直接拦截，避免群内误绑别人的 verse 账号。",
+    "input": {
+      "target": "bot.handle_group_message",
+      "args": {
+        "bot_user_id": "30001",
+        "group_id": "524118799",
+        "text": "绑定 claimed_user",
+        "is_at_bot": true
+      }
+    },
+    "expected": {
+      "reply": "绑定仅限私聊，请私聊 bot 发送：绑定 你的verse用户名"
+    }
+  },
+  {
+    "name": "private unbind clears the current verse binding",
+    "description": "验证已绑定用户可以在私聊里主动解绑，方便纠错和重新绑定。",
+    "input": {
+      "target": "bot.handle_private_message",
+      "args": {
+        "bot_user_id": "20003",
+        "text": "解绑"
+      },
+      "seed_sql": [
+        "INSERT INTO players (id, display_name, status, created_at, updated_at) VALUES (99003, 'BoundUser', 'active', '2026-06-03 09:00:00', '2026-06-03 09:00:00');",
+        "INSERT INTO bot_account_bindings (id, bot_platform, bot_user_id, game_platform, player_id, account_key, display_name, is_active, metadata_json, created_at, updated_at) VALUES (99004, 'qq', '20003', '2048verse', 99003, 'bound_user', 'bound_user', 1, '{}', '2026-06-03 09:00:00', '2026-06-03 09:00:00');"
+      ]
+    },
+    "expected": {
+      "reply": "已解绑 2048verse 账号：bound_user"
+    }
+  },
+  {
+    "name": "admin can manually unbind a qq account in hub",
+    "description": "验证管理员可以在 Hub 里手动解绑某个 QQ 账号，方便处理误绑和纠错。",
+    "input": {
+      "target": "bot.handle_private_message",
+      "args": {
+        "bot_user_id": "90001",
+        "text": "解绑用户 bot_user_id=20004 reason=误绑",
+        "force_admin": true
+      },
+      "seed_sql": [
+        "INSERT INTO players (id, display_name, status, created_at, updated_at) VALUES (99005, 'HubBoundUser', 'active', '2026-06-03 09:00:00', '2026-06-03 09:00:00');",
+        "INSERT INTO bot_account_bindings (id, bot_platform, bot_user_id, game_platform, player_id, account_key, display_name, is_active, metadata_json, created_at, updated_at) VALUES (99006, 'qq', '20004', '2048verse', 99005, 'hub_bound_user', 'hub_bound_user', 1, '{}', '2026-06-03 09:00:00', '2026-06-03 09:00:00');"
+      ]
+    },
+    "expected": {
+      "reply": "已解绑 2048verse 账号：hub_bound_user（bot_user_id=20004）"
+    }
+  }
+]

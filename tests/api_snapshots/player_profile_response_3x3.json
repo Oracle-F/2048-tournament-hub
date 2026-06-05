@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "snapshot_type": "verse_profile",
+  "source": "leaderboard/user",
+  "variant": "3x3",
+  "username": "snapshot_user_33",
+  "display_name": "Snapshot 33",
+  "generated_at": "2026-06-02T10:00:00+08:00",
+  "rating": 1666.5,
+  "rank": 8,
+  "totalGames": 2,
+  "hs": 27654,
+  "games": [
+    {
+      "id": "g3302",
+      "started_at": "2026-05-29T10:00:00Z",
+      "played_at": "2026-05-29T10:02:10Z",
+      "score": 27654,
+      "raw_score": 27654,
+      "final_score": 27654,
+      "variant": "3x3",
+      "board": [
+        [2, 4, 8],
+        [16, 32, 64],
+        [128, 256, 512]
+      ]
+    },
+    {
+      "id": "g3301",
+      "started_at": "2026-05-28T10:00:00Z",
+      "played_at": "2026-05-28T10:01:40Z",
+      "score": 22111,
+      "raw_score": 22111,
+      "final_score": 22111,
+      "variant": "3x3",
+      "board": [
+        [2, 4, 8],
+        [16, 32, 64],
+        [128, 0, 0]
+      ]
+    }
+  ]
+}

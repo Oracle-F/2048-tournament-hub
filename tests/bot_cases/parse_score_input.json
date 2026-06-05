@@ -1,0 +1,16 @@
+{
+  "name": "bot score input parser handles time submissions",
+  "description": "验证 bot 的成绩输入解析可以正确识别 time=毫秒 形式，避免限时赛提交流程误判。",
+  "input": {
+    "target": "bot.parse_score_input",
+    "args": {
+      "text": "time=54321"
+    }
+  },
+  "expected": {
+    "raw_score": null,
+    "final_score": null,
+    "competition_score": null,
+    "primary_time_ms": 54321
+  }
+}

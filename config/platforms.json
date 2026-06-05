@@ -1,0 +1,23 @@
+[
+  {
+    "code": "2048verse",
+    "name": "2048verse",
+    "base_url": "https://2048verse.com",
+    "is_active": true,
+    "metadata": {
+      "supports_api": true,
+      "notes": "当前主办方和选手程序主要基于此平台"
+    }
+  },
+  {
+    "code": "taihe",
+    "name": "Taihe",
+    "base_url": "https://taihe.fun",
+    "is_active": true,
+    "metadata": {
+      "supports_api": false,
+      "notes": "后续接入，可能以页面抓取或其他方式采集"
+    }
+  }
+]
+

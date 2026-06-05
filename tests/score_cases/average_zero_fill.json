@@ -1,0 +1,19 @@
+{
+  "name": "average_of_n zero fill returns zero when all attempts are missing",
+  "description": "验证 average_of_n 在 zero_fill 模式下、没有任何有效局时返回 0，避免空值引起后续结算异常。",
+  "input": {
+    "target": "score.compute_primary_value",
+    "args": {
+      "selected_records": [],
+      "aggregation_method": "average_of_n",
+      "competition_type": "classic_raw_score",
+      "aggregation_count": 3,
+      "missing_attempt_policy": "zero_fill",
+      "ranking_metric": null,
+      "weight_base": 0.6
+    }
+  },
+  "expected": {
+    "value": 0
+  }
+}

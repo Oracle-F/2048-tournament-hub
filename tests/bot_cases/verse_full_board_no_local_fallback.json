@@ -1,0 +1,17 @@
+[
+  {
+    "name": "verse full board queries do not fall back to local history",
+    "description": "验证 24/33 满盘在直播数据缺失时不会再用本地历史数据顶替，避免返回错误结果。",
+    "input": {
+      "target": "bot.verse_full_board_no_local_fallback",
+      "args": {
+        "bot_user_id": "20001",
+        "text": "24满盘"
+      }
+    },
+    "expected": {
+      "reply": "玩家: full_board_user\n2x4 数据暂不可用，请稍后再试。",
+      "local_calls": 0
+    }
+  }
+]

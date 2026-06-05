@@ -1,0 +1,14 @@
+{
+  "name": "failed transaction does not pollute test database",
+  "description": "验证事务失败后不会把测试记录写进数据库，避免历史 Bug 回归时污染后续案例。",
+  "input": {
+    "target": "db.transaction_rollback",
+    "args": {
+      "marker": "case_tx_probe"
+    }
+  },
+  "expected": {
+    "row_exists": false,
+    "count_delta": 0
+  }
+}

@@ -1,0 +1,99 @@
+QQ 私聊 bot 第一版接入说明
+
+一、当前能力
+
+当前以私聊为主，群聊仅开放白名单内的低风险查询与个人看板展示。
+
+当前支持命令：
+
+1. 绑定 / 解绑 2048verse 用户名（仅私聊，绑定时需设置4-5位密码）
+2. 提交成绩 ...
+3. 我的提交
+4. 我的档案
+5. 个人看板（私聊设置、群里 @bot 用户名 查询）
+
+提交成绩当前示例：
+
+提交成绩 event=00001 score=12345 ended_at=2026-04-29 13:29:30
+提交成绩 event=00001 score=12345 started_at=2026-04-29 13:25:00 ended_at=2026-04-29 13:29:30
+提交成绩 event=00001 primary_time_ms=54321 ended_at=2026-04-29 13:29:30
+提交成绩 event=00001 competition_score=1024 ended_at=2026-04-29 13:29:30 note=Taihe补录
+
+二、目录
+
+bot 入口：
+
+bot_private_qq\app.py
+
+启动脚本：
+
+scripts\run_private_qq_bot.py
+
+依赖清单：
+
+requirements-bot.txt
+
+三、推荐接法
+
+推荐使用：
+
+- NapCatQQ
+- OneBot 11
+- 反向 WebSocket
+
+Python bot 只负责接私聊消息，并调用：
+
+services\bot_private_service.py
+
+Hub 手动解绑账号也可以直接用：
+
+python scripts\unbind_bot_account.py --bot-user-id 10001
+python scripts\unbind_bot_account.py --user some_verse_name
+
+四、安装依赖
+
+建议单独准备一个 Python 环境，然后安装：
+
+pip install -r requirements-bot.txt
+
+五、启动 bot
+
+1. 复制 .env.bot.example 为 .env
+2. 按需修改 HOST / PORT / BOT_PLATFORM
+3. 在 赛事中台 目录运行：
+
+python scripts\run_private_qq_bot.py
+
+默认监听：
+
+127.0.0.1:8080
+
+六、NapCat 配置建议
+
+推荐使用反向 WS。
+
+NapCat 反向 WS 地址示例：
+
+ws://127.0.0.1:8080/onebot/v11/ws
+
+如果设置 token，NapCat 与 bot 两边保持一致。
+
+七、当前边界
+
+1. 私聊负责设置和编辑，群聊只做白名单内的只读展示；绑定 / 解绑 仅限私聊，绑定时需设置4-5位密码
+2. 群里除每人每分钟限流外，还有一个群级别的总量限流，避免多人同时把回复队列拖长
+3. 同一群同时处理的慢请求也会受并发限制，避免 Verse 查询挤爆队列
+4. 提交成绩只进入待审核成绩，不直接进入正式成绩
+5. 审核仍在主办方程序里进行
+6. 自动选赛事时，只会在当前 platform 下找 ready / active 的赛事
+7. 如果同平台存在多场活动赛事，提交成绩时必须显式传 event=赛事ID
+8. 个人看板最多 10 行，总非空格字符不超过 200；群里查询时会转义 `@`
+
+八、联调建议
+
+先在命令行验证服务层：
+
+python scripts\simulate_bot_dm.py --bot-user-id 10001 绑定 2048verse 你的用户名 1234
+python scripts\simulate_bot_dm.py --bot-user-id 10001 解绑
+
+再接 NapCat 做真实私聊联调。

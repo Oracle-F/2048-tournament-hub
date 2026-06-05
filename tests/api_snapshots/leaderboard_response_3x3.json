@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "snapshot_type": "verse_leaderboard",
+  "source": "leaderboard/all",
+  "variant": "3x3",
+  "time_key": "all",
+  "page": 1,
+  "generated_at": "2026-06-02T10:00:00+08:00",
+  "leaderboard": [
+    {
+      "rank": 1,
+      "username": "snapshot_user_33",
+      "display_name": "Snapshot 33",
+      "score": 27654,
+      "rating": 1666.5
+    },
+    {
+      "rank": 2,
+      "username": "shadow_33",
+      "display_name": "Shadow 33",
+      "score": 24111,
+      "rating": 1640.0
+    },
+    {
+      "rank": 3,
+      "username": "echo_33",
+      "display_name": "Echo 33",
+      "score": 23800,
+      "rating": 1612.25
+    }
+  ]
+}

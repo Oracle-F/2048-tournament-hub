@@ -1,0 +1,13 @@
+{
+  "name": "group long reply or image reply should redirect",
+  "description": "验证群聊中出现图片或长回复时会触发重定向，避免刷屏式回包。",
+  "input": {
+    "target": "bot.group_should_redirect_reply",
+    "args": {
+      "reply_text": "[CQ:image,file=help.png]"
+    }
+  },
+  "expected": {
+    "value": true
+  }
+}

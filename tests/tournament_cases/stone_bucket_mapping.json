@@ -1,0 +1,34 @@
+{
+  "cases": [
+    {
+      "name": "stone 1k bucket mapping",
+      "description": "验证 Stone 4x4 的 1024 边界值会映射到 1k bucket。",
+      "input": {
+        "target": "mode.infer_rating_bucket_code",
+        "args": {
+          "variant_code": "4x4",
+          "competition_type": "stone_x",
+          "target_value": 1024
+        }
+      },
+      "expected": {
+        "value": "stone_1k_4x4"
+      }
+    },
+    {
+      "name": "stone 2k bucket mapping",
+      "description": "验证 Stone 4x4 的 2048 边界值会映射到 2k bucket。",
+      "input": {
+        "target": "mode.infer_rating_bucket_code",
+        "args": {
+          "variant_code": "4x4",
+          "competition_type": "stone_x",
+          "target_value": 2048
+        }
+      },
+      "expected": {
+        "value": "stone_2k_4x4"
+      }
+    }
+  ]
+}

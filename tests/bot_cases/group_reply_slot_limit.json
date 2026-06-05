@@ -1,0 +1,17 @@
+[
+  {
+    "name": "group reply slot limit blocks later slow jobs",
+    "description": "验证同一群同时处理的慢请求数量会被限制，避免 Verse 慢查询把队列拖长。",
+    "input": {
+      "target": "bot.group_reply_slot_sequence",
+      "args": {
+        "group_id": "524118799",
+        "user_ids": ["30001", "30002", "30003"],
+        "limit": 2
+      }
+    },
+    "expected": {
+      "values": [true, true, false]
+    }
+  }
+]

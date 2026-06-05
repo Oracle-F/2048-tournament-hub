@@ -1,66 +1,135 @@
 比赛操作清单
 
-一、开赛前
+一、初始化
+1. 先运行 scripts\init_db.py
+2. 确认数据库已存在: 赛事中台\data\tournament_hub.sqlite3
 
-1. 确认比赛模式
-- 先看模式属于：经典4x4 / Stone / 限时赛 / 竞速 / 其他
-- 再确定对应的 ranking_metric 和排序方向
+二、经典 4x4 比赛
+单局最高分赛
+scripts\create_event.py --event-code classic_4x4_20260501_1900 --event-name "经典4x4单局最高分赛" --platform 2048verse --variant 4x4 --event-type single_attempt --competition-type classic_raw_score --aggregation-method best_single --status ready --official --start-time "2026-05-01 19:00:00" --end-time "2026-05-01 21:00:00"
 
-2. 检查数据
-- 确认比赛所用数据库是 `data/testing.db`（测试时）或正式库（正式运营时）
-- 检查报名名单是否正确
-- 检查是否存在重复报名、取消状态混入、旧测试数据残留
+三局平均分赛
+scripts\create_event.py --event-code classic_4x4_avg3_20260501_1900 --event-name "经典4x4三局平均赛" --platform 2048verse --variant 4x4 --event-type multi_attempt --competition-type classic_raw_score --aggregation-method average_of_n --aggregation-count 3 --status ready --official --start-time "2026-05-01 19:00:00" --end-time "2026-05-08 19:00:00"
 
-3. 检查 bot 状态
-- 私聊 bot 是否在线
-- 群聊是否保持低风险配置
-- 风控开关是否仍处于保守状态
+三、Stone 比赛
+1k Stone
+scripts\create_event.py --event-code stone_1k_20260501_1900 --event-name "1k Stone" --platform taihe --variant 4x4 --event-type single_attempt --competition-type stone_x --target-value 1024 --aggregation-method best_single --status ready --official --start-time "2026-05-01 19:00:00" --end-time "2026-05-03 19:00:00"
 
-二、比赛中
+2k Stone
+scripts\create_event.py --event-code stone_2k_20260501_1900 --event-name "2k Stone" --platform taihe --variant 4x4 --event-type single_attempt --competition-type stone_x --target-value 2048 --aggregation-method best_single --status ready --official --start-time "2026-05-01 19:00:00" --end-time "2026-05-03 19:00:00"
 
-1. 报名阶段
-- 允许报名
-- 必要时人工导入名单
-- 避免重复报名和错误账号绑定
+四、经典 4x4 锁第一局
+选手通知“开始”后：
+scripts\start_attempt.py --event classic_4x4_20260501_1900 --user 玩家用户名 --deadline-minutes 30
 
-2. 提交阶段
-- 提交成绩后先进入待审核
-- 如果是锁局赛，注意区分锁局有效记录和普通刷新记录
-- 如果是限时赛，注意看结束时间和目标口径
+处理待锁定会话：
+scripts\watch_attempts.py
 
-3. 审核阶段
-- 先看原始成绩与来源
-- 再看是否属于当前赛事、当前平台、当前规则
-- 如有疑问，先保留记录，不要急删
+持续轮询：
+scripts\watch_attempts.py --loop --interval 5
 
-4. 锁局阶段
-- 如果使用 Verse 锁局，注意 early/final 的对应关系
-- 如果只是导入型比赛，不要强行套锁局流程
+如果选手说某局未成功上传，等管理员补录进 verse 后：
+1. 先查看候选局
+scripts\list_attempt_candidates.py --event classic_4x4_20260501_1900 --user 玩家用户名
 
-三、比赛后
+2. 再手动绑定正确那一局
+可直接按补录信息匹配：
+scripts\bind_attempt_record.py --event classic_4x4_20260501_1900 --user 玩家用户名 --score 123456 --ended-at "2026-05-01 20:15:00" --max-tile 2048
+默认只按 2 分钟时间容差匹配，主要用于兼容补录时秒数不精确的情况；如有必要可额外传 --tolerance-minutes 放宽。
+如确实知道内部记录ID，也仍可使用：
+scripts\bind_attempt_record.py --event classic_4x4_20260501_1900 --user 玩家用户名 --record-id verse内部记录ID
 
-1. 检查排名
-- 确认排序字段是否正确
-- 确认是否有误混入的记录类型
-- 确认是否有异常的并列处理
+补录候选判断口径：
+1. rec 越高越优先
+2. in_window 表示这条记录的 started_at 落在本次锁局会话时间窗内
+3. exact_second / exact_minute 表示终局时间是否与补录时间完全一致，或至少精确到分钟一致
+4. max_tile_match / user_id_match 为 exact 时，可进一步提高置信度
+5. 若 max_tile / user_id 显示为 missing，表示这条 Verse 记录里暂未识别到对应字段，不代表一定不匹配
 
-2. 检查结算
-- 结算结果是否与比赛规则一致
-- 是否有遗漏的有效局
-- 是否有不该参与排名的记录被带进来
+五、导入成绩
+经典 4x4 或 Stone 都可以用：
+scripts\import_scores.py --event 赛事ID --file 成绩文件.csv
 
-3. 导出与归档
-- 导出需要的成绩或排名
-- 把必要的证据保存到 `data/evidence/` 或对应快照目录
-- 若发现新问题，及时写进 `docs/bug_history.md`
+六、结算成绩
+scripts\settle_event.py --event 赛事ID
 
-四、遇到异常时
+手动录入/补录成绩
 
-优先顺序：
+Taihe 等没有稳定自动检测接口的平台，可以在主办方程序中使用：
 
-1. 先保数据
-2. 再保结论
-3. 再补证据
-4. 最后才考虑重算
+6. 成绩管理
+2. 手动录入/补录单条成绩
 
-如果不确定某条记录是否应该保留，先别删，先做标记并记录原因。
+如果比赛规则是“比赛时间内任意多局，取其中最高的 X 局”：
+
+1. 当前实操上可以直接让选手把这 X 局成绩报给主办方，再手动录入
+2. 结算时系统会从当前比赛时间窗内、已经录入的所有有效局中，自动取最高的 X 局
+3. 如果主办方希望更严格核验，则应让选手提交比赛时间窗内的全部完赛局，而不只提交前 X 局
+
+字段说明：
+
+1. 备注/证据说明可以留空
+2. 开始时间可以留空
+3. 结束时间必填，用于判断该记录是否落在比赛时间窗内
+4. 如果开始时间留空，系统会用结束时间作为该记录的开始时间
+5. 至少需要填写一种成绩：raw_score / final_score / competition_score / primary_time_ms
+
+不同模式建议填写：
+
+经典/斐波那契：
+raw_score 或 final_score
+
+Stone / No-X：
+competition_score，可选 target_tile_value
+
+Speedrun：
+primary_time_ms，可选 target_tile_value
+
+强制结束比赛
+
+如果比赛时间填错、测试赛要提前收口，或主办方确认要提前结束，可以在主办方程序主菜单使用：
+
+13. 强制结束当前比赛
+
+该操作会：
+
+1. 将当前比赛 end_time 改为当前本地时间
+2. 将 events.status 标记为 finished
+3. 将当前比赛未完成的锁局会话标记为 expired
+
+该操作不会：
+
+1. 自动结算比赛
+2. 自动导出最终结果
+3. 自动重算 rating
+
+强制结束后，如需生成正式结果，请再执行：
+
+9. 结算比赛
+
+七、查看结果
+查看数据库概览：
+scripts\inspect_db.py
+
+查看单场赛事：
+scripts\inspect_db.py --event 赛事ID
+
+八、模板文件
+- docs\经典4x4成绩模板.csv
+- docs\Stone成绩模板.csv
+
+九、注意
+- 现有历史导入默认不计 rating
+- 锁第一局目前只支持 2048verse
+- Stone 目前先按导入成绩文件的方式走，不依赖自动抓取
+- 如果自动锁局跟丢，可在 verse 补录完成后手动绑定记录
+- 只有比赛开始后开始、并在比赛结束前结束的局才有效
+- average_of_n 如果局数不足，缺少的局按 0 分补齐
+- sum_of_best_n 如果局数不足，按已有有效局求和
+
+十、这次比赛可直接用
+经典无撤回 4x4：选手只打一局
+scripts\create_event.py --event-code classic_no_undo_4x4_20260501 --event-name "经典无撤回4x4" --platform 2048verse --variant 4x4 --event-type single_attempt --competition-type classic_raw_score --aggregation-method best_single --status ready --official --start-time "2026-05-01 00:00:00" --end-time "2026-05-06 00:00:00"
+
+2k Stone：选手打两局取最高分，五一假期期间
+scripts\create_event.py --event-code stone_2k_mayday_2026 --event-name "2k Stone 五一赛" --platform taihe --variant 4x4 --event-type multi_attempt --competition-type stone_x --target-value 2048 --aggregation-method best_of_n --aggregation-count 2 --status ready --official --start-time "2026-05-01 00:00:00" --end-time "2026-05-06 00:00:00"

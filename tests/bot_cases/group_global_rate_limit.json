@@ -1,0 +1,17 @@
+[
+  {
+    "name": "group global rate limit blocks later top-level requests",
+    "description": "验证群聊总量限流会拦住同一分钟内后续的首条命令，避免多人同时把回复队列拖长。",
+    "input": {
+      "target": "bot.group_global_rate_limit_sequence",
+      "args": {
+        "group_id": "524118799",
+        "user_ids": ["30001", "30002", "30003"],
+        "rate_limit": 2
+      }
+    },
+    "expected": {
+      "values": [true, true, false]
+    }
+  }
+]

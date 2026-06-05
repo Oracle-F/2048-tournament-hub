@@ -1,0 +1,35 @@
+{
+  "name": "speedrun ranking orders lower time first",
+  "description": "验证竞速赛按 primary_time_ms 从小到大排名，并输出稳定的名次顺序。",
+  "input": {
+    "target": "ranking.build_ranked_results",
+    "args": {
+      "event_code": "TEST_SPEEDRUN_001"
+    },
+    "seed_sql": [
+      "INSERT INTO players (id, display_name, status, created_at, updated_at) VALUES (1, 'Alice', 'active', '2026-05-01 09:00:00', '2026-05-01 09:00:00');",
+      "INSERT INTO players (id, display_name, status, created_at, updated_at) VALUES (2, 'Bob', 'active', '2026-05-01 09:00:00', '2026-05-01 09:00:00');",
+      "INSERT INTO players (id, display_name, status, created_at, updated_at) VALUES (3, 'Carol', 'active', '2026-05-01 09:00:00', '2026-05-01 09:00:00');",
+      "INSERT INTO player_accounts (id, player_id, platform_id, account_key, account_name, account_display_name, is_primary, metadata_json, created_at, updated_at) VALUES (201, 1, (SELECT id FROM platforms WHERE code = 'taihe'), 'alice_speed', 'alice_speed', 'Alice', 1, '{}', '2026-05-01 09:00:00', '2026-05-01 09:00:00');",
+      "INSERT INTO player_accounts (id, player_id, platform_id, account_key, account_name, account_display_name, is_primary, metadata_json, created_at, updated_at) VALUES (202, 2, (SELECT id FROM platforms WHERE code = 'taihe'), 'bob_speed', 'bob_speed', 'Bob', 1, '{}', '2026-05-01 09:00:00', '2026-05-01 09:00:00');",
+      "INSERT INTO player_accounts (id, player_id, platform_id, account_key, account_name, account_display_name, is_primary, metadata_json, created_at, updated_at) VALUES (203, 3, (SELECT id FROM platforms WHERE code = 'taihe'), 'carol_speed', 'carol_speed', 'Carol', 1, '{}', '2026-05-01 09:00:00', '2026-05-01 09:00:00');",
+      "INSERT INTO events (id, event_code, event_name, platform_id, variant_id, event_type, competition_type, status, is_official, is_rated, start_time, end_time, created_at, updated_at) VALUES (100, 'TEST_SPEEDRUN_001', 'Speedrun ranking case', (SELECT id FROM platforms WHERE code = 'taihe'), (SELECT id FROM variants WHERE code = '4x4'), 'multi_attempt', 'speedrun', 'finished', 1, 0, '2026-05-01 10:00:00', '2026-05-01 11:00:00', '2026-05-01 09:00:00', '2026-05-01 11:00:00');",
+      "INSERT INTO event_rule_sets (id, event_id, version, rule_type, ranking_metric, ranking_order, aggregation_method, validation_rule, tiebreakers_json, rule_config_json, created_at) VALUES (101, 100, 1, 'speedrun', 'primary_time_ms', 'asc', 'best_single', 'window', '[]', '{}', '2026-05-01 09:00:00');",
+      "INSERT INTO performance_records (id, platform_id, player_account_id, variant_id, source_record_id, record_type, started_at, ended_at, raw_score, final_score, primary_time_ms, target_tile_value, score_before_target, board_state_json, evidence_json, result_state, is_completed, is_valid_source, raw_payload_json, ingested_at, updated_at) VALUES (301, (SELECT id FROM platforms WHERE code = 'taihe'), 201, (SELECT id FROM variants WHERE code = '4x4'), 'alice_speedrun_1', 'manual_score_entry', '2026-05-01 10:10:00', '2026-05-01 10:12:00', NULL, NULL, 54321, NULL, NULL, '{}', '{}', 'completed', 1, 1, '{}', '2026-05-01 10:12:00', '2026-05-01 10:12:00');",
+      "INSERT INTO performance_records (id, platform_id, player_account_id, variant_id, source_record_id, record_type, started_at, ended_at, raw_score, final_score, primary_time_ms, target_tile_value, score_before_target, board_state_json, evidence_json, result_state, is_completed, is_valid_source, raw_payload_json, ingested_at, updated_at) VALUES (302, (SELECT id FROM platforms WHERE code = 'taihe'), 202, (SELECT id FROM variants WHERE code = '4x4'), 'bob_speedrun_1', 'manual_score_entry', '2026-05-01 10:10:00', '2026-05-01 10:12:00', NULL, NULL, 61234, NULL, NULL, '{}', '{}', 'completed', 1, 1, '{}', '2026-05-01 10:12:00', '2026-05-01 10:12:00');",
+      "INSERT INTO performance_records (id, platform_id, player_account_id, variant_id, source_record_id, record_type, started_at, ended_at, raw_score, final_score, primary_time_ms, target_tile_value, score_before_target, board_state_json, evidence_json, result_state, is_completed, is_valid_source, raw_payload_json, ingested_at, updated_at) VALUES (303, (SELECT id FROM platforms WHERE code = 'taihe'), 203, (SELECT id FROM variants WHERE code = '4x4'), 'carol_speedrun_1', 'manual_score_entry', '2026-05-01 10:10:00', '2026-05-01 10:12:00', NULL, NULL, 50000, NULL, NULL, '{}', '{}', 'completed', 1, 1, '{}', '2026-05-01 10:12:00', '2026-05-01 10:12:00');",
+      "INSERT INTO event_attempt_records (id, event_id, player_id, attempt_session_id, performance_record_id, record_role, evaluation_status, derived_metric_value, sort_metric_primary, sort_metric_secondary, derived_metric_json, notes, created_at, updated_at) VALUES (401, 100, 1, NULL, 301, 'candidate', 'pending', NULL, NULL, NULL, '{}', NULL, '2026-05-01 10:12:30', '2026-05-01 10:12:30');",
+      "INSERT INTO event_attempt_records (id, event_id, player_id, attempt_session_id, performance_record_id, record_role, evaluation_status, derived_metric_value, sort_metric_primary, sort_metric_secondary, derived_metric_json, notes, created_at, updated_at) VALUES (402, 100, 2, NULL, 302, 'candidate', 'pending', NULL, NULL, NULL, '{}', NULL, '2026-05-01 10:12:30', '2026-05-01 10:12:30');",
+      "INSERT INTO event_attempt_records (id, event_id, player_id, attempt_session_id, performance_record_id, record_role, evaluation_status, derived_metric_value, sort_metric_primary, sort_metric_secondary, derived_metric_json, notes, created_at, updated_at) VALUES (403, 100, 3, NULL, 303, 'candidate', 'pending', NULL, NULL, NULL, '{}', NULL, '2026-05-01 10:12:30', '2026-05-01 10:12:30');"
+    ]
+  },
+  "expected": {
+    "event_code": "TEST_SPEEDRUN_001",
+    "aggregation_method": "best_single",
+    "record_count": 3,
+    "player_order": ["Carol", "Alice", "Bob"],
+    "rank_values": [1, 2, 3],
+    "primary_metric_values": [50000, 54321, 61234],
+    "best_single_scores": [50000, 54321, 61234]
+  }
+}

@@ -1,0 +1,41 @@
+[
+  {
+    "name": "private dashboard set stores multiline content",
+    "description": "验证已绑定用户可以在私聊里直接设置个人看板，且会返回行数与非空格字符统计。",
+    "input": {
+      "target": "bot.handle_private_message",
+      "args": {
+        "bot_user_id": "20001",
+        "text": "看板 第一行\n第二行 @提醒"
+      },
+      "seed_sql": [
+        "INSERT INTO players (id, display_name, status, created_at, updated_at) VALUES (9101, 'DashboardUser', 'active', '2026-06-04 09:00:00', '2026-06-04 09:00:00');",
+        "INSERT INTO bot_account_bindings (id, bot_platform, bot_user_id, game_platform, player_id, account_key, display_name, is_active, metadata_json, created_at, updated_at) VALUES (9911, 'qq', '20001', '2048verse', 9101, 'dashboard_user', 'dashboard_user', 1, '{}', '2026-06-04 09:00:00', '2026-06-04 09:00:00');"
+      ]
+    },
+    "expected": {
+      "reply": "个人看板已更新。\n行数：2/10\n非空格字符：9/200\n群里可发送“@bot 你的用户名”查看。"
+    }
+  },
+  {
+    "name": "group dashboard query shows sanitized content",
+    "description": "验证群里任何人都可以通过 @bot 用户名 查看已绑定用户设置的个人看板，并且会转义 @ 提及。",
+    "input": {
+      "target": "bot.handle_group_message",
+      "args": {
+        "bot_user_id": "30001",
+        "group_id": "524118799",
+        "text": "dashboard_user",
+        "is_at_bot": true
+      },
+      "seed_sql": [
+        "INSERT INTO players (id, display_name, status, created_at, updated_at) VALUES (9102, 'DashboardUser', 'active', '2026-06-04 09:00:00', '2026-06-04 09:00:00');",
+        "INSERT INTO bot_account_bindings (id, bot_platform, bot_user_id, game_platform, player_id, account_key, display_name, is_active, metadata_json, created_at, updated_at) VALUES (9912, 'qq', '20002', '2048verse', 9102, 'dashboard_user', 'dashboard_user', 1, '{}', '2026-06-04 09:00:00', '2026-06-04 09:00:00');",
+        "INSERT INTO bot_player_dashboards (id, game_platform, player_id, dashboard_text, line_count, nonspace_char_count, created_at, updated_at) VALUES (9921, '2048verse', 9102, replace('第一行\\\\n第二行 @提醒', '\\\\n', char(10)), 2, 9, '2026-06-04 09:00:00', '2026-06-04 09:00:00');"
+      ]
+    },
+    "expected": {
+      "reply": "玩家: dashboard_user\n个人看板\n第一行\n第二行 ＠提醒"
+    }
+  }
+]

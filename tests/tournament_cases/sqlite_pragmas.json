@@ -1,0 +1,13 @@
+{
+  "name": "sqlite connection uses lock-friendly pragmas",
+  "description": "验证测试数据库连接继承了 foreign_keys / busy_timeout / WAL 这些锁竞争缓解参数。",
+  "input": {
+    "target": "db.connection_pragmas",
+    "args": {}
+  },
+  "expected": {
+    "foreign_keys": 1,
+    "busy_timeout": 10000,
+    "journal_mode": "wal"
+  }
+}

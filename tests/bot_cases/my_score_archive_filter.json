@@ -1,0 +1,60 @@
+[
+  {
+    "name": "normal my-score view hides archived events",
+    "description": "验证默认我的成绩视图会过滤 archived 赛事，避免长期残留的历史赛混进当前查询。",
+    "input": {
+      "target": "bot.load_my_score_event_rows",
+      "args": {
+        "binding": {
+          "player_id": 1,
+          "game_platform": "2048verse"
+        },
+        "archived_only": false,
+        "month_key": null
+      },
+      "seed_sql": [
+        "INSERT INTO players (id, display_name, status, created_at, updated_at) VALUES (1, 'Alpha', 'active', '2026-05-03 09:00:00', '2026-05-03 09:00:00');",
+        "INSERT INTO player_accounts (id, player_id, platform_id, account_key, account_name, account_display_name, is_primary, metadata_json, created_at, updated_at) VALUES (201, 1, (SELECT id FROM platforms WHERE code = '2048verse'), 'alpha_score', 'alpha_score', 'Alpha', 1, '{}', '2026-05-03 09:00:00', '2026-05-03 09:00:00');",
+        "INSERT INTO events (id, event_code, event_name, platform_id, variant_id, event_type, competition_type, status, is_official, is_rated, start_time, end_time, created_at, updated_at) VALUES (901, 'SCORE_ACTIVE_001', 'Active score event', (SELECT id FROM platforms WHERE code = '2048verse'), (SELECT id FROM variants WHERE code = '4x4'), 'single_attempt', 'classic_raw_score', 'active', 1, 0, '2026-05-20 09:00:00', '2026-05-20 10:00:00', '2026-05-03 09:00:00', '2026-05-20 10:00:00');",
+        "INSERT INTO events (id, event_code, event_name, platform_id, variant_id, event_type, competition_type, status, is_official, is_rated, start_time, end_time, created_at, updated_at) VALUES (902, 'SCORE_ARCHIVED_001', 'Archived score event', (SELECT id FROM platforms WHERE code = '2048verse'), (SELECT id FROM variants WHERE code = '4x4'), 'single_attempt', 'classic_raw_score', 'archived', 1, 0, '2026-04-20 09:00:00', '2026-04-20 10:00:00', '2026-04-03 09:00:00', '2026-04-20 10:00:00');",
+        "INSERT INTO registrations (id, event_id, player_id, registered_via, status, metadata_json, registered_at) VALUES (1001, 901, 1, 'manual', 'active', '{}', '2026-05-03 09:10:00');",
+        "INSERT INTO registrations (id, event_id, player_id, registered_via, status, metadata_json, registered_at) VALUES (1002, 902, 1, 'manual', 'active', '{}', '2026-04-03 09:10:00');"
+      ]
+    },
+    "expected": {
+      "count": 1,
+      "event_codes": ["SCORE_ACTIVE_001"],
+      "statuses": ["active"],
+      "registration_statuses": ["active"]
+    }
+  },
+  {
+    "name": "archived-only my-score view returns archived history",
+    "description": "验证归档成绩视图只返回 archived 赛事，方便新接手的人回看历史而不混入当前赛。",
+    "input": {
+      "target": "bot.load_my_score_event_rows",
+      "args": {
+        "binding": {
+          "player_id": 1,
+          "game_platform": "2048verse"
+        },
+        "archived_only": true,
+        "month_key": null
+      },
+      "seed_sql": [
+        "INSERT INTO players (id, display_name, status, created_at, updated_at) VALUES (1, 'Alpha', 'active', '2026-05-03 09:00:00', '2026-05-03 09:00:00');",
+        "INSERT INTO player_accounts (id, player_id, platform_id, account_key, account_name, account_display_name, is_primary, metadata_json, created_at, updated_at) VALUES (201, 1, (SELECT id FROM platforms WHERE code = '2048verse'), 'alpha_score', 'alpha_score', 'Alpha', 1, '{}', '2026-05-03 09:00:00', '2026-05-03 09:00:00');",
+        "INSERT INTO events (id, event_code, event_name, platform_id, variant_id, event_type, competition_type, status, is_official, is_rated, start_time, end_time, created_at, updated_at) VALUES (901, 'SCORE_ACTIVE_001', 'Active score event', (SELECT id FROM platforms WHERE code = '2048verse'), (SELECT id FROM variants WHERE code = '4x4'), 'single_attempt', 'classic_raw_score', 'active', 1, 0, '2026-05-20 09:00:00', '2026-05-20 10:00:00', '2026-05-03 09:00:00', '2026-05-20 10:00:00');",
+        "INSERT INTO events (id, event_code, event_name, platform_id, variant_id, event_type, competition_type, status, is_official, is_rated, start_time, end_time, created_at, updated_at) VALUES (902, 'SCORE_ARCHIVED_001', 'Archived score event', (SELECT id FROM platforms WHERE code = '2048verse'), (SELECT id FROM variants WHERE code = '4x4'), 'single_attempt', 'classic_raw_score', 'archived', 1, 0, '2026-04-20 09:00:00', '2026-04-20 10:00:00', '2026-04-03 09:00:00', '2026-04-20 10:00:00');",
+        "INSERT INTO registrations (id, event_id, player_id, registered_via, status, metadata_json, registered_at) VALUES (1001, 901, 1, 'manual', 'active', '{}', '2026-05-03 09:10:00');",
+        "INSERT INTO registrations (id, event_id, player_id, registered_via, status, metadata_json, registered_at) VALUES (1002, 902, 1, 'manual', 'active', '{}', '2026-04-03 09:10:00');"
+      ]
+    },
+    "expected": {
+      "count": 1,
+      "event_codes": ["SCORE_ARCHIVED_001"],
+      "statuses": ["archived"],
+      "registration_statuses": ["active"]
+    }
+  }
+]

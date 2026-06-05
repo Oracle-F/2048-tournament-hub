@@ -1,62 +1,71 @@
-设计说明
+赛事中台第一版说明
 
-一、总体思路
+目标
+- 不改或尽量少改计分器目录下的现有程序
+- 将比赛结果统一归档到独立 SQLite 数据库
+- 先支持读取主办方总排名 JSON
+- 为后续多平台、多玩法、QQbot、rating 预留结构
 
-这个项目的核心思路不是追求“功能最多”，而是追求：
+当前实现范围
+- 建立中台目录和 SQLite 数据库
+- 初始化平台、玩法、rating family、rating bucket 配置
+- 扫描 比赛导出\主办方 下的 总排名.json
+- 将历史结果以 legacy_import 形式入库
 
-- 数据尽量可追溯
-- 结算尽量一致
-- Bot 尽量低风险
-- 测试尽量能回放
-- 文档尽量能接手
+当前不做
+- 不根据现有历史导出结果计算 rating
+- 不接入 QQbot
+- 不接入 taihe
+- 不导入 txt/png/html
+- 不解析玩家逐局明细
 
-二、核心分层
+几个关键原则
+- variant 表示玩法实例，不等于棋盘尺寸
+- competition_type 表示比赛判定方式
+- rating_bucket 才是实际计算 rating 的单位
+- 历史导入默认 is_rated=0
+- 现有导出 JSON 是第一版可信主输入
 
-1. 数据层
-- SQLite 数据库
-- 测试库固定使用 `data/testing.db`
-- 重要快照和证据保存为独立文件
+首批脚本
+- scripts\init_db.py: 建库、建表、初始化配置
+- scripts\import_exports.py: 扫描并导入主办方总排名 JSON
+- scripts\inspect_db.py: 查看数据库概览，或按 event_code 查看单场赛事结果
+- scripts\convert_ranking_txt.py: 将旧版总排名 txt 转成可导入的总排名 JSON
+- scripts\create_event.py: 手动创建或更新正式赛事定义，给后续正式比赛和 rating 启用打底
+- scripts\import_scores.py: 按 event_code 导入经典4x4或 stone 等原始分成绩文件
+- scripts\settle_event.py: 按赛事规则把原始成绩结算成 event_results
+- scripts\start_attempt.py: 手动发起“下一局锁定”会话
+- scripts\watch_attempts.py: 轮询并锁定 2048verse 选手开始后的第一局
+- scripts\list_attempt_candidates.py: 查看某次开始后的 verse 候选局
+- scripts\bind_attempt_record.py: 手动绑定补录后的 verse 记录
 
-2. 业务层
-- `services/` 目录
-- 负责报名、提交、结算、刷新、查询、审核等逻辑
+成绩导入文件
+- 支持 csv 和 json
+- 最少建议字段: username, score
+- 常用字段: display_name, raw_score, final_score, competition_score, started_at, ended_at, source_record_id
+- 可选字段: primary_time_ms, target_tile_value, score_before_target, result_state, evidence_json, raw_payload_json
 
-3. 接入层
-- 主办方 CLI
-- QQ bot
-- 工具脚本
+手动锁局说明
+- 第一版仅支持 2048verse
+- 主办方在选手通知“开始”后运行 start_attempt.py
+- watch_attempts.py 会查找该选手开始时间之后的第一把已完成对局
+- 找到后会写入 performance_records 和 event_attempt_records
+- 如果局未成功上传，等 verse 管理员补录后，可用 list_attempt_candidates.py 和 bind_attempt_record.py 手动绑定
 
-三、为什么强调“复用现有逻辑”
+时间与聚合规则
+- 只有比赛开始后开始、并在比赛结束前结束的局才有效
+- best_of_n 在有效局不足要求局数时，按已有有效局取最高
+- average_of_n 在有效局不足要求局数时，缺少的局按 0 分补齐
+- sum_of_best_n 在有效局不足要求局数时，按已有有效局求和
+- 五一假期赛可按 2026-05-01 00:00:00 至 2026-05-06 00:00:00 作为当前示例，最终可按你的实际安排调整
 
-因为比赛系统最怕的是：
+附加文档
+- docs\命令示例.txt: 常用命令速查
+- docs\比赛操作清单.txt: 比赛前后按步骤操作的清单
+- docs\经典4x4成绩模板.csv: 经典4x4导入模板
+- docs\Stone成绩模板.csv: Stone 导入模板
 
-- 结算规则被重写
-- 排名字段被改乱
-- 历史数据无法再解释
-- 回归测试没法继续沿用
-
-所以遇到新需求时，优先在现有逻辑上补，而不是另起炉灶。
-
-四、测试设计原则
-
-- 测试案例尽量小而具体
-- 新问题先变成最小复现
-- 真实赛事快照优先保留
-- API 快照优先保留
-- 回放样本优先保留
-
-五、文档设计原则
-
-- 索引短
-- 规则清晰
-- 状态和历史分开
-- 事故和归档分开
-- 交接和操作分开
-
-六、维护目标
-
-让下一个接手的人能快速判断：
-
-- 现在系统的安全边界在哪里
-- 当前最重要的问题是什么
-- 哪些东西已经稳定了，不用再重复折腾
+前端入口
+- 计分器\organizer_event_hub.py: 原始分/积分赛主办方入口，适合经典4x4、Stone、积分赛等
+- 计分器\organizer_timed_scoring.py: 限时计分赛主办方入口
+- 计分器\player_timed_scoring.py: 限时计分赛选手入口

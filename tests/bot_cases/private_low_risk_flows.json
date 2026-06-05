@@ -1,0 +1,126 @@
+[
+  {
+    "name": "private help returns the player help image",
+    "description": "验证私聊 help 能返回基础帮助图，作为恢复最常用入口的回归保护。",
+    "input": {
+      "target": "bot.handle_private_message",
+      "args": {
+        "bot_user_id": "10001",
+        "text": "help"
+      }
+    },
+    "expected": {
+      "reply": "[CQ:image,file=file:///C:/Users/oracl/Documents/Codex/2026-04-25/files-mentioned-by-the-user-score/%E8%B5%9B%E4%BA%8B%E4%B8%AD%E5%8F%B0/data/bot_help_images/player_help.png]"
+    }
+  },
+  {
+    "name": "private bind prompt asks for verse username",
+    "description": "验证私聊绑定入口会先要求输入 verse 用户名，保持最小可用绑定流程稳定。",
+    "input": {
+      "target": "bot.handle_private_message",
+      "args": {
+        "bot_user_id": "10002",
+        "text": "绑定"
+      }
+    },
+    "expected": {
+      "reply": "请输入verse用户名。"
+    }
+  },
+  {
+    "name": "private bind command succeeds for a verse username",
+    "description": "验证私聊绑定命令在提供 4-5 位密码后可以直接完成绑定并返回后续帮助提示。",
+    "input": {
+      "target": "bot.handle_private_message",
+      "args": {
+        "bot_user_id": "10003",
+        "text": "绑定 test_user 1234"
+      }
+    },
+    "expected": {
+      "reply": "已绑定 2048verse 账号：test_user\n发送 help 查看可用命令。"
+    }
+  },
+  {
+    "name": "private bind command asks for pin after username",
+    "description": "验证私聊绑定在只提供用户名时会继续要求设置 4-5 位绑定密码。",
+    "input": {
+      "target": "bot.handle_private_message",
+      "args": {
+        "bot_user_id": "10008",
+        "text": "绑定 test_user"
+      }
+    },
+    "expected": {
+      "reply": "请输入4-5位绑定密码。"
+    }
+  },
+  {
+    "name": "private score query asks for binding first",
+    "description": "验证未绑定时的成绩查询会回到绑定引导，不会继续走重流程。",
+    "input": {
+      "target": "bot.handle_private_message",
+      "args": {
+        "bot_user_id": "10004",
+        "text": "我的成绩"
+      }
+    },
+    "expected": {
+      "reply": "你还没有绑定账号。请先发送：绑定"
+    }
+  },
+  {
+    "name": "private submit flow opens when account is bound",
+    "description": "验证已绑定用户的提交成绩入口会进入提交流程，而不是直接拒绝。",
+    "input": {
+      "target": "bot.handle_private_message",
+      "args": {
+        "bot_user_id": "10005",
+        "text": "提交成绩"
+      },
+      "seed_sql": [
+        "INSERT INTO players (id, display_name, status, created_at, updated_at) VALUES (9001, 'BoundUser', 'active', '2026-06-03 09:00:00', '2026-06-03 09:00:00');",
+        "INSERT INTO bot_account_bindings (id, bot_platform, bot_user_id, game_platform, player_id, account_key, display_name, is_active, metadata_json, created_at, updated_at) VALUES (9901, 'qq', '10005', '2048verse', 9001, 'test_user', 'test_user', 1, '{}', '2026-06-03 09:00:00', '2026-06-03 09:00:00');"
+      ]
+    },
+    "expected": {
+      "reply": "开始提交成绩。\n当前没有可提交成绩的赛事。"
+    }
+  },
+  {
+    "name": "private floor flow opens when account is bound",
+    "description": "验证已绑定用户的 floor 入口会进入锁局流程，而不是直接关闭。",
+    "input": {
+      "target": "bot.handle_private_message",
+      "args": {
+        "bot_user_id": "10006",
+        "text": "floor"
+      },
+      "seed_sql": [
+        "INSERT INTO players (id, display_name, status, created_at, updated_at) VALUES (9002, 'BoundUser', 'active', '2026-06-03 09:00:00', '2026-06-03 09:00:00');",
+        "INSERT INTO bot_account_bindings (id, bot_platform, bot_user_id, game_platform, player_id, account_key, display_name, is_active, metadata_json, created_at, updated_at) VALUES (9902, 'qq', '10006', '2048verse', 9002, 'test_user', 'test_user', 1, '{}', '2026-06-03 09:00:00', '2026-06-03 09:00:00');"
+      ]
+    },
+    "expected": {
+      "reply": "你当前没有可锁局的赛事。"
+    }
+  },
+  {
+    "name": "private my-score query opens when account is bound",
+    "description": "验证已绑定用户的我的成绩查询会进入成绩查询页，而不是继续要求绑定。",
+    "input": {
+      "target": "bot.handle_private_message",
+      "args": {
+        "bot_user_id": "10007",
+        "text": "我的成绩"
+      },
+      "seed_sql": [
+        "INSERT INTO players (id, display_name, status, created_at, updated_at) VALUES (9003, 'BoundUser', 'active', '2026-06-03 09:00:00', '2026-06-03 09:00:00');",
+        "INSERT INTO bot_account_bindings (id, bot_platform, bot_user_id, game_platform, player_id, account_key, display_name, is_active, metadata_json, created_at, updated_at) VALUES (9903, 'qq', '10007', '2048verse', 9003, 'test_user', 'test_user', 1, '{}', '2026-06-03 09:00:00', '2026-06-03 09:00:00');"
+      ]
+    },
+    "expected": {
+      "reply": "你当前没有可查询成绩的已报名赛事。请先报名比赛。"
+    }
+  }
+]

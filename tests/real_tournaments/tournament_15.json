@@ -1,0 +1,136 @@
+{
+  "schema_version": 1,
+  "snapshot_type": "real_tournament",
+  "source": {
+    "database": "tournament_hub.sqlite3",
+    "event_id": 15,
+    "event_code": "20260433"
+  },
+  "exported_at": "2026-06-02T16:24:16",
+  "event": {
+    "event_code": "20260433",
+    "event_name": "527test_1",
+    "platform_code": "2048verse",
+    "variant_code": "4x4",
+    "rating_bucket_code": "classic_4x4_raw_score",
+    "event_type": "single_attempt",
+    "competition_type": "classic_raw_score",
+    "status": "archived",
+    "is_official": false,
+    "is_rated": false,
+    "registration_close_time": "2026-05-27 10:38:00",
+    "start_time": "2026-05-27 10:28:00",
+    "end_time": "2026-05-27 11:15:00",
+    "seal_time": null,
+    "source": "organizer_event_hub",
+    "tags": [
+      "raw_score_hosted"
+    ],
+    "metadata": {
+      "notes": "created by organizer_event_hub.py",
+      "mode_code": "classic_4x4_raw_score",
+      "variant_code": "4x4",
+      "uses_locking": true,
+      "score_import_notes": "Verse 锁局为主，也可导入补充成绩文件。",
+      "remark": null,
+      "timed_mode": "legacy",
+      "reservation_duration_minutes": null,
+      "registration_deadline_offset": "00:10"
+    },
+    "target_value": null
+  },
+  "rule_set": {
+    "version": 1,
+    "rule_type": "classic_raw_score",
+    "ranking_metric": "raw_score",
+    "ranking_order": "desc",
+    "aggregation_method": "best_single",
+    "validation_rule": "event_attempt_selection",
+    "tiebreakers": [],
+    "rule_config": {
+      "event_type": "single_attempt",
+      "competition_type": "classic_raw_score",
+      "target_value": null,
+      "source": "organizer_event_hub",
+      "tags": [
+        "raw_score_hosted"
+      ],
+      "time_window": {
+        "start": "2026-05-27 10:28:00",
+        "end": "2026-05-27 11:15:00"
+      },
+      "metadata": {
+        "notes": "created by organizer_event_hub.py",
+        "mode_code": "classic_4x4_raw_score",
+        "variant_code": "4x4",
+        "uses_locking": true,
+        "score_import_notes": "Verse 锁局为主，也可导入补充成绩文件。",
+        "remark": null,
+        "timed_mode": "legacy",
+        "reservation_duration_minutes": null,
+        "registration_deadline_offset": "00:10"
+      }
+    }
+  },
+  "players": [
+    {
+      "username": "Oracle_F",
+      "display_name": "Oracle_F"
+    }
+  ],
+  "raw_scores": [
+    {
+      "username": "Oracle_F",
+      "display_name": "Oracle_F",
+      "source_record_id": "discord_20260433_1099070063790800956_1509029863519027370",
+      "record_type": "manual_score_entry",
+      "started_at": "2026-05-27T11:05:55",
+      "ended_at": "2026-05-27T11:05:55",
+      "raw_score": 11180,
+      "final_score": 11180,
+      "competition_score": 11180,
+      "primary_time_ms": null,
+      "target_tile_value": null,
+      "score_before_target": null,
+      "result_state": "completed",
+      "evidence_json": "{\"note\": \"discord_auto_bind channel=1099070063790800956 message=1509029863519027370 attachment=1509029863237881926\"}",
+      "raw_payload_json": "{\"source\": \"manual_score_entry\", \"entered_at\": \"2026-05-27T15:51:28\", \"started_at_was_unknown\": true, \"evidence_note\": \"discord_auto_bind channel=1099070063790800956 message=1509029863519027370 attachment=1509029863237881926\"}"
+    }
+  ],
+  "ranking_results": [
+    {
+      "rank": 1,
+      "username": "Oracle_F",
+      "display_name": "Oracle_F",
+      "primary_metric_type": "raw_score",
+      "primary_metric_value": 11180.0,
+      "secondary_metric_type": "attempt_count",
+      "secondary_metric_value": 1.0,
+      "best_single_score": 11180,
+      "result_payload": {
+        "aggregation_method": "best_single",
+        "aggregation_count": null,
+        "missing_attempt_policy": null,
+        "competition_type": "classic_raw_score",
+        "total_full_boards": null,
+        "weighted_terms": [],
+        "source_records": [
+          {
+            "ended_at": "2026-05-27T11:05:55",
+            "raw_score": 11180,
+            "final_score": 11180,
+            "primary_time_ms": null,
+            "target_tile_value": null
+          }
+        ]
+      }
+    }
+  ],
+  "rating_results": [],
+  "summary": {
+    "player_count": 1,
+    "raw_score_count": 1,
+    "ranking_count": 1,
+    "rating_count": 0
+  }
+}

@@ -1,0 +1,256 @@
+{
+  "schema_version": 1,
+  "snapshot_type": "real_tournament",
+  "source": {
+    "database": "tournament_hub.sqlite3",
+    "event_id": 13,
+    "event_code": "20260431"
+  },
+  "exported_at": "2026-06-02T16:24:14",
+  "event": {
+    "event_code": "20260431",
+    "event_name": "5.30_24限时赛",
+    "platform_code": "2048verse",
+    "variant_code": "2x4",
+    "rating_bucket_code": "timed_2x4",
+    "event_type": "timed_scoring",
+    "competition_type": "timed_scoring",
+    "status": "ready",
+    "is_official": true,
+    "is_rated": true,
+    "registration_close_time": "2026-05-31 00:00:00",
+    "start_time": "2026-05-30 00:00",
+    "end_time": "2026-06-01 00:00",
+    "seal_time": null,
+    "source": "organizer_event_hub",
+    "tags": [
+      "timed_scoring"
+    ],
+    "metadata": {
+      "notes": "created by organizer_event_hub.py",
+      "mode_code": "timed_2x4",
+      "variant_code": "2x4",
+      "uses_locking": false,
+      "score_import_notes": "限时赛成绩（支持预约型子模式）。",
+      "remark": null,
+      "timed_mode": "reservation",
+      "reservation_duration_minutes": 60,
+      "registration_deadline_offset": "24:00"
+    },
+    "target_value": null
+  },
+  "rule_set": {
+    "version": 1,
+    "rule_type": "timed_scoring",
+    "ranking_metric": "custom_points",
+    "ranking_order": "desc",
+    "aggregation_method": "sum",
+    "validation_rule": "window_closed_games",
+    "tiebreakers": [],
+    "rule_config": {
+      "event_type": "timed_scoring",
+      "competition_type": "timed_scoring",
+      "target_value": null,
+      "source": "organizer_event_hub",
+      "tags": [
+        "timed_scoring"
+      ],
+      "time_window": {
+        "start": "2026-05-30 00:00",
+        "end": "2026-06-01 00:00"
+      },
+      "metadata": {
+        "notes": "created by organizer_event_hub.py",
+        "mode_code": "timed_2x4",
+        "variant_code": "2x4",
+        "uses_locking": false,
+        "score_import_notes": "限时赛成绩（支持预约型子模式）。",
+        "remark": null,
+        "timed_mode": "reservation",
+        "reservation_duration_minutes": 60,
+        "registration_deadline_offset": "24:00"
+      }
+    }
+  },
+  "players": [
+    {
+      "username": "bsynbbsynb991",
+      "display_name": "bsynbbsynb991"
+    }
+  ],
+  "raw_scores": [
+    {
+      "username": "bsynbbsynb991",
+      "display_name": "bsynbbsynb991",
+      "source_record_id": "20260431_bsynbbsynb991_reservation_9_game_1540392",
+      "record_type": "manual_score_entry",
+      "started_at": "2026-05-31T20:45:50",
+      "ended_at": "2026-05-31T20:45:50",
+      "raw_score": 2224,
+      "final_score": 2224,
+      "competition_score": 1,
+      "primary_time_ms": null,
+      "target_tile_value": null,
+      "score_before_target": null,
+      "result_state": "completed",
+      "evidence_json": "{\"note\": \"reservation_auto_settlement\"}",
+      "raw_payload_json": "{\"source\": \"manual_score_entry\", \"entered_at\": \"2026-06-01T08:39:41\", \"started_at_was_unknown\": false, \"evidence_note\": \"reservation_auto_settlement\"}"
+    },
+    {
+      "username": "bsynbbsynb991",
+      "display_name": "bsynbbsynb991",
+      "source_record_id": "20260431_bsynbbsynb991_reservation_9_game_1540397",
+      "record_type": "manual_score_entry",
+      "started_at": "2026-05-31T20:47:47",
+      "ended_at": "2026-05-31T20:47:47",
+      "raw_score": 2116,
+      "final_score": 2116,
+      "competition_score": 1,
+      "primary_time_ms": null,
+      "target_tile_value": null,
+      "score_before_target": null,
+      "result_state": "completed",
+      "evidence_json": "{\"note\": \"reservation_auto_settlement\"}",
+      "raw_payload_json": "{\"source\": \"manual_score_entry\", \"entered_at\": \"2026-06-01T08:39:41\", \"started_at_was_unknown\": false, \"evidence_note\": \"reservation_auto_settlement\"}"
+    },
+    {
+      "username": "bsynbbsynb991",
+      "display_name": "bsynbbsynb991",
+      "source_record_id": "20260431_bsynbbsynb991_reservation_9_game_1540403",
+      "record_type": "manual_score_entry",
+      "started_at": "2026-05-31T20:49:53",
+      "ended_at": "2026-05-31T20:49:53",
+      "raw_score": 2248,
+      "final_score": 2248,
+      "competition_score": 1,
+      "primary_time_ms": null,
+      "target_tile_value": null,
+      "score_before_target": null,
+      "result_state": "completed",
+      "evidence_json": "{\"note\": \"reservation_auto_settlement\"}",
+      "raw_payload_json": "{\"source\": \"manual_score_entry\", \"entered_at\": \"2026-06-01T08:39:41\", \"started_at_was_unknown\": false, \"evidence_note\": \"reservation_auto_settlement\"}"
+    },
+    {
+      "username": "bsynbbsynb991",
+      "display_name": "bsynbbsynb991",
+      "source_record_id": "20260431_bsynbbsynb991_reservation_9_game_1540425",
+      "record_type": "manual_score_entry",
+      "started_at": "2026-05-31T20:54:22",
+      "ended_at": "2026-05-31T20:54:22",
+      "raw_score": 2664,
+      "final_score": 2664,
+      "competition_score": 2,
+      "primary_time_ms": null,
+      "target_tile_value": null,
+      "score_before_target": null,
+      "result_state": "completed",
+      "evidence_json": "{\"note\": \"reservation_auto_settlement\"}",
+      "raw_payload_json": "{\"source\": \"manual_score_entry\", \"entered_at\": \"2026-06-01T08:39:41\", \"started_at_was_unknown\": false, \"evidence_note\": \"reservation_auto_settlement\"}"
+    },
+    {
+      "username": "bsynbbsynb991",
+      "display_name": "bsynbbsynb991",
+      "source_record_id": "20260431_bsynbbsynb991_reservation_9_game_1540446",
+      "record_type": "manual_score_entry",
+      "started_at": "2026-05-31T20:59:23",
+      "ended_at": "2026-05-31T20:59:23",
+      "raw_score": 1960,
+      "final_score": 1960,
+      "competition_score": 1,
+      "primary_time_ms": null,
+      "target_tile_value": null,
+      "score_before_target": null,
+      "result_state": "completed",
+      "evidence_json": "{\"note\": \"reservation_auto_settlement\"}",
+      "raw_payload_json": "{\"source\": \"manual_score_entry\", \"entered_at\": \"2026-06-01T08:39:41\", \"started_at_was_unknown\": false, \"evidence_note\": \"reservation_auto_settlement\"}"
+    },
+    {
+      "username": "bsynbbsynb991",
+      "display_name": "bsynbbsynb991",
+      "source_record_id": "20260431_bsynbbsynb991_reservation_9_game_1540496",
+      "record_type": "manual_score_entry",
+      "started_at": "2026-05-31T21:07:36",
+      "ended_at": "2026-05-31T21:07:36",
+      "raw_score": 2096,
+      "final_score": 2096,
+      "competition_score": 1,
+      "primary_time_ms": null,
+      "target_tile_value": null,
+      "score_before_target": null,
+      "result_state": "completed",
+      "evidence_json": "{\"note\": \"reservation_auto_settlement\"}",
+      "raw_payload_json": "{\"source\": \"manual_score_entry\", \"entered_at\": \"2026-06-01T08:39:41\", \"started_at_was_unknown\": false, \"evidence_note\": \"reservation_auto_settlement\"}"
+    }
+  ],
+  "ranking_results": [
+    {
+      "rank": 1,
+      "username": "bsynbbsynb991",
+      "display_name": "bsynbbsynb991",
+      "primary_metric_type": "custom_points",
+      "primary_metric_value": 7.0,
+      "secondary_metric_type": "attempt_count",
+      "secondary_metric_value": 6.0,
+      "best_single_score": 2,
+      "result_payload": {
+        "aggregation_method": "sum",
+        "aggregation_count": null,
+        "missing_attempt_policy": null,
+        "competition_type": "timed_scoring",
+        "total_full_boards": 0,
+        "weighted_terms": [],
+        "source_records": [
+          {
+            "ended_at": "2026-05-31T20:54:22",
+            "raw_score": 2664,
+            "final_score": 2664,
+            "primary_time_ms": null,
+            "target_tile_value": null
+          },
+          {
+            "ended_at": "2026-05-31T21:07:36",
+            "raw_score": 2096,
+            "final_score": 2096,
+            "primary_time_ms": null,
+            "target_tile_value": null
+          },
+          {
+            "ended_at": "2026-05-31T20:59:23",
+            "raw_score": 1960,
+            "final_score": 1960,
+            "primary_time_ms": null,
+            "target_tile_value": null
+          },
+          {
+            "ended_at": "2026-05-31T20:49:53",
+            "raw_score": 2248,
+            "final_score": 2248,
+            "primary_time_ms": null,
+            "target_tile_value": null
+          },
+          {
+            "ended_at": "2026-05-31T20:47:47",
+            "raw_score": 2116,
+            "final_score": 2116,
+            "primary_time_ms": null,
+            "target_tile_value": null
+          },
+          {
+            "ended_at": "2026-05-31T20:45:50",
+            "raw_score": 2224,
+            "final_score": 2224,
+            "primary_time_ms": null,
+            "target_tile_value": null
+          }
+        ]
+      }
+    }
+  ],
+  "rating_results": [],
+  "summary": {
+    "player_count": 1,
+    "raw_score_count": 6,
+    "ranking_count": 1,
+    "rating_count": 0
+  }
+}

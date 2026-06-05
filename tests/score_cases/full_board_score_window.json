@@ -1,0 +1,31 @@
+[
+  {
+    "name": "full board score windows stay conservative",
+    "description": "验证 24/33 各阶满盘的分数窗口保持稳定，并覆盖 33 三阶满盘 14360 这个代表性样本点。",
+    "input": {
+      "target": "score.full_board_score_window_summary",
+      "args": {
+        "score": 14360
+      }
+    },
+    "expected": {
+      "windows": {
+        "2x4": {
+          "1": [2882, 3066],
+          "2": [5126, 5327],
+          "3": [6130, 6320],
+          "4": [6579, 6742]
+        },
+        "3x3": {
+          "1": [6838, 7097],
+          "2": [11843, 12127],
+          "3": [14104, 14372],
+          "4": [15121, 15352],
+          "5": [15583, 15760]
+        }
+      },
+      "probability_33_tier3_score_14360_upper_tail_ppm": 339,
+      "contains_14360_in_33_tier3": true
+    }
+  }
+]

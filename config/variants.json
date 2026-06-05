@@ -1,0 +1,85 @@
+[
+  {
+    "code": "4x4",
+    "name": "经典 4x4",
+    "game_family": "2048_like",
+    "shape_type": "rect_grid",
+    "board_width": 4,
+    "board_height": 4,
+    "ruleset_key": "classic_4x4",
+    "category": "classic",
+    "metadata": {}
+  },
+  {
+    "code": "2x4",
+    "name": "2x4",
+    "game_family": "2048_like",
+    "shape_type": "rect_grid",
+    "board_width": 2,
+    "board_height": 4,
+    "ruleset_key": "timed_2x4",
+    "category": "timed_scoring",
+    "metadata": {}
+  },
+  {
+    "code": "3x3",
+    "name": "3x3",
+    "game_family": "2048_like",
+    "shape_type": "rect_grid",
+    "board_width": 3,
+    "board_height": 3,
+    "ruleset_key": "timed_3x3",
+    "category": "timed_scoring",
+    "metadata": {}
+  },
+  {
+    "code": "3x4",
+    "name": "3x4",
+    "game_family": "2048_like",
+    "shape_type": "rect_grid",
+    "board_width": 3,
+    "board_height": 4,
+    "ruleset_key": "points_series_3x4",
+    "category": "points_series",
+    "metadata": {}
+  },
+  {
+    "code": "fibonacci_3x3",
+    "name": "斐波那契 3x3",
+    "game_family": "2048_like",
+    "shape_type": "rect_grid",
+    "board_width": 3,
+    "board_height": 3,
+    "ruleset_key": "fibonacci_3x3",
+    "category": "fibonacci",
+    "metadata": {
+      "merge_sequence": "1,1,2,3,5,8,..."
+    }
+  },
+  {
+    "code": "fibonacci_4x4",
+    "name": "斐波那契 4x4",
+    "game_family": "2048_like",
+    "shape_type": "rect_grid",
+    "board_width": 4,
+    "board_height": 4,
+    "ruleset_key": "fibonacci_4x4",
+    "category": "fibonacci",
+    "metadata": {
+      "merge_sequence": "1,1,2,3,5,8,..."
+    }
+  },
+  {
+    "code": "fibonacci_5x5",
+    "name": "斐波那契 5x5",
+    "game_family": "2048_like",
+    "shape_type": "rect_grid",
+    "board_width": 5,
+    "board_height": 5,
+    "ruleset_key": "fibonacci_5x5",
+    "category": "fibonacci",
+    "metadata": {
+      "merge_sequence": "1,1,2,3,5,8,..."
+    }
+  }
+]

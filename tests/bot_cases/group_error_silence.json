@@ -1,0 +1,30 @@
+[
+  {
+    "name": "group handler silences unexpected errors",
+    "description": "验证群聊里出现一般异常时不会把内部错误明文发给群友，减少刷屏和风控风险。",
+    "input": {
+      "target": "bot.message_handler_error_reply",
+      "args": {
+        "is_group": true,
+        "message": "boom"
+      }
+    },
+    "expected": {
+      "reply": null
+    }
+  },
+  {
+    "name": "private handler still reports unexpected errors",
+    "description": "验证私聊仍保留失败提示，便于排查而不影响群聊静默策略。",
+    "input": {
+      "target": "bot.message_handler_error_reply",
+      "args": {
+        "is_group": false,
+        "message": "boom"
+      }
+    },
+    "expected": {
+      "reply": "处理失败：boom"
+    }
+  }
+]

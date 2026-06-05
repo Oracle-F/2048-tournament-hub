@@ -1,0 +1,16 @@
+[
+  {
+    "name": "verse rawr keeps the best leaderboard candidate",
+    "description": "验证 rawr 会继续选择 leaderboard 中 rating 最高的候选，而不是只看第一行。",
+    "input": {
+      "target": "bot.verse_rawr_first_row_fast_path",
+      "args": {
+        "variant_code": "4x4"
+      }
+    },
+    "expected": {
+      "reply": "4x4 raWR | 用户名 beta_user | PB 2222 | rating 999.9",
+      "snapshot_calls": 0
+    }
+  }
+]

@@ -1,0 +1,43 @@
+{
+  "name": "stone import row preserves boundary fields",
+  "description": "验证 Stone/No-X 类导入行会保留 target_tile_value 和 score_before_target，避免特殊计分边界字段丢失。",
+  "input": {
+    "target": "score.normalize_row",
+    "args": {
+      "index": 1,
+      "default_source_prefix": "stone_case",
+      "row": {
+        "username": "stone_user",
+        "display_name": "StoneUser",
+        "score": "123456",
+        "target_tile_value": "1024",
+        "score_before_target": "987",
+        "source_record_id": "stone_001"
+      }
+    }
+  },
+  "expected": {
+    "username": "stone_user",
+    "display_name": "StoneUser",
+    "source_record_id": "stone_001",
+    "record_type": "manual_import",
+    "started_at": null,
+    "ended_at": null,
+    "raw_score": 123456,
+    "final_score": 123456,
+    "competition_score": 123456,
+    "primary_time_ms": null,
+    "target_tile_value": 1024,
+    "score_before_target": 987,
+    "result_state": null,
+    "evidence": null,
+    "raw_payload": {
+      "username": "stone_user",
+      "display_name": "StoneUser",
+      "score": "123456",
+      "target_tile_value": "1024",
+      "score_before_target": "987",
+      "source_record_id": "stone_001"
+    }
+  }
+}

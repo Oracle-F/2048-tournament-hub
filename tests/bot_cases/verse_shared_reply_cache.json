@@ -1,0 +1,20 @@
+[
+  {
+    "name": "verse shared reply cache reuses public queries across users",
+    "description": "验证同一个公开 Verse 查询在不同 QQ 用户之间会共享回复缓存，避免重复构建慢回复。",
+    "input": {
+      "target": "bot.verse_shared_reply_cache_sequence",
+      "args": {
+        "text": "4x4 wr",
+        "first_bot_user_id": "20001",
+        "second_bot_user_id": "20002"
+      }
+    },
+    "expected": {
+      "first_reply": "4x4 WR | 用户名 alpha_user | PB 1234 | rating -",
+      "second_reply": "4x4 WR | 用户名 alpha_user | PB 1234 | rating -",
+      "cache_size_after_first": 1,
+      "cache_size_after_second": 1
+    }
+  }
+]

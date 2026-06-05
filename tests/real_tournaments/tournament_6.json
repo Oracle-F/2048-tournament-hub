@@ -1,0 +1,591 @@
+{
+  "schema_version": 1,
+  "snapshot_type": "real_tournament",
+  "source": {
+    "database": "tournament_hub.sqlite3",
+    "event_id": 6,
+    "event_code": "五一44竞分赛_20260501"
+  },
+  "exported_at": "2026-06-02T16:19:51",
+  "event": {
+    "event_code": "五一44竞分赛_20260501",
+    "event_name": "五一44竞分赛",
+    "platform_code": "2048verse",
+    "variant_code": "4x4",
+    "rating_bucket_code": "classic_4x4_raw_score",
+    "event_type": "single_attempt",
+    "competition_type": "classic_raw_score",
+    "status": "ready",
+    "is_official": true,
+    "is_rated": true,
+    "registration_close_time": null,
+    "start_time": "2026-05-01 00:00",
+    "end_time": "2026-05-06 00:00",
+    "seal_time": null,
+    "source": "organizer_raw_score",
+    "tags": [
+      "raw_score_hosted"
+    ],
+    "metadata": {
+      "notes": "created by organizer_raw_score.py",
+      "mode_code": "classic_4x4_raw_score",
+      "variant_code": "4x4",
+      "uses_locking": true,
+      "score_import_notes": "Verse 锁局为主，也可导入补充成绩文件。"
+    },
+    "target_value": null
+  },
+  "rule_set": {
+    "version": 1,
+    "rule_type": "classic_raw_score",
+    "ranking_metric": "raw_score",
+    "ranking_order": "desc",
+    "aggregation_method": "best_single",
+    "validation_rule": "event_attempt_selection",
+    "tiebreakers": [],
+    "rule_config": {
+      "event_type": "single_attempt",
+      "competition_type": "classic_raw_score",
+      "target_value": null,
+      "source": "organizer_raw_score",
+      "tags": [
+        "raw_score_hosted"
+      ],
+      "time_window": {
+        "start": "2026-05-01 00:00",
+        "end": "2026-05-06 00:00"
+      },
+      "metadata": {
+        "notes": "created by organizer_raw_score.py",
+        "mode_code": "classic_4x4_raw_score",
+        "variant_code": "4x4",
+        "uses_locking": true,
+        "score_import_notes": "Verse 锁局为主，也可导入补充成绩文件。"
+      }
+    }
+  },
+  "players": [
+    {
+      "username": "32768player",
+      "display_name": "32768player"
+    },
+    {
+      "username": "skyskysky",
+      "display_name": "skyskysky"
+    },
+    {
+      "username": "P20230154",
+      "display_name": "P20230154"
+    },
+    {
+      "username": "wsw7ydxn5t",
+      "display_name": "wsw7ydxn5t"
+    },
+    {
+      "username": "Kotomi",
+      "display_name": "Kotomi"
+    },
+    {
+      "username": "SMCU",
+      "display_name": "SMCU"
+    }
+  ],
+  "raw_scores": [
+    {
+      "username": "32768player",
+      "display_name": "32768player",
+      "source_record_id": "五一44竞分赛_20260501_8192player_manual_20260502T114248",
+      "record_type": "manual_score_entry",
+      "started_at": "2026-05-01 15:39:31",
+      "ended_at": "2026-05-01 15:39:31",
+      "raw_score": 148148,
+      "final_score": 148148,
+      "competition_score": 148148,
+      "primary_time_ms": null,
+      "target_tile_value": null,
+      "score_before_target": null,
+      "result_state": "completed",
+      "evidence_json": null,
+      "raw_payload_json": "{\"source\": \"manual_score_entry\", \"entered_at\": \"2026-05-02T11:42:48\", \"started_at_was_unknown\": true, \"evidence_note\": null}"
+    },
+    {
+      "username": "skyskysky",
+      "display_name": "skyskysky",
+      "source_record_id": "五一44竞分赛_20260501_skyskysky_manual_20260503T040802",
+      "record_type": "manual_score_entry",
+      "started_at": "2026-05-01 20:25:40",
+      "ended_at": "2026-05-01 20:25:40",
+      "raw_score": 128892,
+      "final_score": 128892,
+      "competition_score": 128892,
+      "primary_time_ms": null,
+      "target_tile_value": null,
+      "score_before_target": null,
+      "result_state": "completed",
+      "evidence_json": null,
+      "raw_payload_json": "{\"source\": \"manual_score_entry\", \"entered_at\": \"2026-05-03T04:08:02\", \"started_at_was_unknown\": true, \"evidence_note\": null}"
+    },
+    {
+      "username": "P20230154",
+      "display_name": "P20230154",
+      "source_record_id": "五一44竞分赛_20260501_P20230154_manual_20260503T154110",
+      "record_type": "manual_score_entry",
+      "started_at": "2026-05-02 16:25:37",
+      "ended_at": "2026-05-02 16:25:37",
+      "raw_score": 387024,
+      "final_score": 387024,
+      "competition_score": 387024,
+      "primary_time_ms": null,
+      "target_tile_value": null,
+      "score_before_target": null,
+      "result_state": "completed",
+      "evidence_json": null,
+      "raw_payload_json": "{\"source\": \"manual_score_entry\", \"entered_at\": \"2026-05-03T15:41:10\", \"started_at_was_unknown\": true, \"evidence_note\": null}"
+    },
+    {
+      "username": "wsw7ydxn5t",
+      "display_name": "wsw7ydxn5t",
+      "source_record_id": "五一44竞分赛_20260501_wsw7ydxn5t_manual_20260505T011731",
+      "record_type": "manual_score_entry",
+      "started_at": "2026-05-04 21:41:55",
+      "ended_at": "2026-05-04 21:41:55",
+      "raw_score": 741452,
+      "final_score": 741452,
+      "competition_score": 741452,
+      "primary_time_ms": null,
+      "target_tile_value": null,
+      "score_before_target": null,
+      "result_state": "completed",
+      "evidence_json": null,
+      "raw_payload_json": "{\"source\": \"manual_score_entry\", \"entered_at\": \"2026-05-05T01:17:31\", \"started_at_was_unknown\": true, \"evidence_note\": null}"
+    },
+    {
+      "username": "Kotomi",
+      "display_name": "Kotomi",
+      "source_record_id": "五一44竞分赛_20260501_Kotomi_manual_20260505T011838",
+      "record_type": "manual_score_entry",
+      "started_at": "2026-05-04 22:25:57",
+      "ended_at": "2026-05-04 22:25:57",
+      "raw_score": 384672,
+      "final_score": 384672,
+      "competition_score": 384672,
+      "primary_time_ms": null,
+      "target_tile_value": null,
+      "score_before_target": null,
+      "result_state": "completed",
+      "evidence_json": null,
+      "raw_payload_json": "{\"source\": \"manual_score_entry\", \"entered_at\": \"2026-05-05T01:18:38\", \"started_at_was_unknown\": true, \"evidence_note\": null}"
+    },
+    {
+      "username": "SMCU",
+      "display_name": "SMCU",
+      "source_record_id": "五一44竞分赛_20260501_SMCU_manual_20260505T151206",
+      "record_type": "manual_score_entry",
+      "started_at": "2026-05-05 15:03:02",
+      "ended_at": "2026-05-05 15:03:02",
+      "raw_score": 819304,
+      "final_score": 819304,
+      "competition_score": 819304,
+      "primary_time_ms": null,
+      "target_tile_value": null,
+      "score_before_target": null,
+      "result_state": "completed",
+      "evidence_json": null,
+      "raw_payload_json": "{\"source\": \"manual_score_entry\", \"entered_at\": \"2026-05-05T15:12:06\", \"started_at_was_unknown\": true, \"evidence_note\": null}"
+    }
+  ],
+  "ranking_results": [
+    {
+      "rank": 1,
+      "username": "SMCU",
+      "display_name": "SMCU",
+      "primary_metric_type": "raw_score",
+      "primary_metric_value": 819304.0,
+      "secondary_metric_type": "attempt_count",
+      "secondary_metric_value": 1.0,
+      "best_single_score": 819304,
+      "result_payload": {
+        "aggregation_method": "best_single",
+        "aggregation_count": null,
+        "missing_attempt_policy": null,
+        "competition_type": "classic_raw_score",
+        "total_full_boards": null,
+        "weighted_terms": [],
+        "source_records": [
+          {
+            "ended_at": "2026-05-05 15:03:02",
+            "raw_score": 819304,
+            "final_score": 819304,
+            "primary_time_ms": null,
+            "target_tile_value": null
+          }
+        ]
+      }
+    },
+    {
+      "rank": 2,
+      "username": "wsw7ydxn5t",
+      "display_name": "wsw7ydxn5t",
+      "primary_metric_type": "raw_score",
+      "primary_metric_value": 741452.0,
+      "secondary_metric_type": "attempt_count",
+      "secondary_metric_value": 1.0,
+      "best_single_score": 741452,
+      "result_payload": {
+        "aggregation_method": "best_single",
+        "aggregation_count": null,
+        "missing_attempt_policy": null,
+        "competition_type": "classic_raw_score",
+        "total_full_boards": null,
+        "weighted_terms": [],
+        "source_records": [
+          {
+            "ended_at": "2026-05-04 21:41:55",
+            "raw_score": 741452,
+            "final_score": 741452,
+            "primary_time_ms": null,
+            "target_tile_value": null
+          }
+        ]
+      }
+    },
+    {
+      "rank": 3,
+      "username": "P20230154",
+      "display_name": "P20230154",
+      "primary_metric_type": "raw_score",
+      "primary_metric_value": 387024.0,
+      "secondary_metric_type": "attempt_count",
+      "secondary_metric_value": 1.0,
+      "best_single_score": 387024,
+      "result_payload": {
+        "aggregation_method": "best_single",
+        "aggregation_count": null,
+        "missing_attempt_policy": null,
+        "competition_type": "classic_raw_score",
+        "total_full_boards": null,
+        "weighted_terms": [],
+        "source_records": [
+          {
+            "ended_at": "2026-05-02 16:25:37",
+            "raw_score": 387024,
+            "final_score": 387024,
+            "primary_time_ms": null,
+            "target_tile_value": null
+          }
+        ]
+      }
+    },
+    {
+      "rank": 4,
+      "username": "Kotomi",
+      "display_name": "Kotomi",
+      "primary_metric_type": "raw_score",
+      "primary_metric_value": 384672.0,
+      "secondary_metric_type": "attempt_count",
+      "secondary_metric_value": 1.0,
+      "best_single_score": 384672,
+      "result_payload": {
+        "aggregation_method": "best_single",
+        "aggregation_count": null,
+        "missing_attempt_policy": null,
+        "competition_type": "classic_raw_score",
+        "total_full_boards": null,
+        "weighted_terms": [],
+        "source_records": [
+          {
+            "ended_at": "2026-05-04 22:25:57",
+            "raw_score": 384672,
+            "final_score": 384672,
+            "primary_time_ms": null,
+            "target_tile_value": null
+          }
+        ]
+      }
+    },
+    {
+      "rank": 5,
+      "username": "32768player",
+      "display_name": "32768player",
+      "primary_metric_type": "raw_score",
+      "primary_metric_value": 148148.0,
+      "secondary_metric_type": "attempt_count",
+      "secondary_metric_value": 1.0,
+      "best_single_score": 148148,
+      "result_payload": {
+        "aggregation_method": "best_single",
+        "aggregation_count": null,
+        "missing_attempt_policy": null,
+        "competition_type": "classic_raw_score",
+        "total_full_boards": null,
+        "weighted_terms": [],
+        "source_records": [
+          {
+            "ended_at": "2026-05-01 15:39:31",
+            "raw_score": 148148,
+            "final_score": 148148,
+            "primary_time_ms": null,
+            "target_tile_value": null
+          }
+        ]
+      }
+    },
+    {
+      "rank": 6,
+      "username": "skyskysky",
+      "display_name": "skyskysky",
+      "primary_metric_type": "raw_score",
+      "primary_metric_value": 128892.0,
+      "secondary_metric_type": "attempt_count",
+      "secondary_metric_value": 1.0,
+      "best_single_score": 128892,
+      "result_payload": {
+        "aggregation_method": "best_single",
+        "aggregation_count": null,
+        "missing_attempt_policy": null,
+        "competition_type": "classic_raw_score",
+        "total_full_boards": null,
+        "weighted_terms": [],
+        "source_records": [
+          {
+            "ended_at": "2026-05-01 20:25:40",
+            "raw_score": 128892,
+            "final_score": 128892,
+            "primary_time_ms": null,
+            "target_tile_value": null
+          }
+        ]
+      }
+    }
+  ],
+  "rating_results": [
+    {
+      "username": "SMCU",
+      "display_name": "SMCU",
+      "old_rating": 500.0,
+      "new_rating": 883.7819168067904,
+      "delta_rating": 383.7819168067904,
+      "old_deviation": 300.0,
+      "new_deviation": 191.89095840339525,
+      "placement": 1,
+      "field_size": 6,
+      "details": {
+        "algorithm": "glicko2_v1",
+        "initial_rating": 500.0,
+        "initial_rd": 300.0,
+        "initial_volatility": 0.06,
+        "tau": 0.5,
+        "rd_min": 60.0,
+        "rd_max": 350.0,
+        "rd_active_cap": 220.0,
+        "rd_inactivity_grace_days": 14,
+        "rd_inactivity_per_day": 4.0,
+        "inactivity_days": 0,
+        "pre_rating": 500.0,
+        "pre_rd": 300.0,
+        "pre_volatility": 0.06,
+        "post_rating": 883.7819168067904,
+        "post_rd": 191.89095840339525,
+        "post_volatility": 1.7659368949684653,
+        "rank": 1,
+        "field_size": 6,
+        "opponent_count": 5,
+        "tie_count": 0,
+        "primary_metric_value": 819304.0,
+        "secondary_metric_value": 1.0,
+        "best_single_score": 819304
+      }
+    },
+    {
+      "username": "wsw7ydxn5t",
+      "display_name": "wsw7ydxn5t",
+      "old_rating": 500.0,
+      "new_rating": 690.5189631124128,
+      "delta_rating": 190.51896311241285,
+      "old_deviation": 300.0,
+      "new_deviation": 174.5443268095099,
+      "placement": 2,
+      "field_size": 6,
+      "details": {
+        "algorithm": "glicko2_v1",
+        "initial_rating": 500.0,
+        "initial_rd": 300.0,
+        "initial_volatility": 0.06,
+        "tau": 0.5,
+        "rd_min": 60.0,
+        "rd_max": 350.0,
+        "rd_active_cap": 220.0,
+        "rd_inactivity_grace_days": 14,
+        "rd_inactivity_per_day": 4.0,
+        "inactivity_days": 0,
+        "pre_rating": 500.0,
+        "pre_rd": 300.0,
+        "pre_volatility": 0.06,
+        "post_rating": 690.5189631124128,
+        "post_rd": 174.5443268095099,
+        "post_volatility": 0.059998828684098726,
+        "rank": 2,
+        "field_size": 6,
+        "opponent_count": 5,
+        "tie_count": 0,
+        "primary_metric_value": 741452.0,
+        "secondary_metric_value": 1.0,
+        "best_single_score": 741452
+      }
+    },
+    {
+      "username": "P20230154",
+      "display_name": "P20230154",
+      "old_rating": 500.0,
+      "new_rating": 563.5063196407643,
+      "delta_rating": 63.50631964076433,
+      "old_deviation": 300.0,
+      "new_deviation": 174.54432489011668,
+      "placement": 3,
+      "field_size": 6,
+      "details": {
+        "algorithm": "glicko2_v1",
+        "initial_rating": 500.0,
+        "initial_rd": 300.0,
+        "initial_volatility": 0.06,
+        "tau": 0.5,
+        "rd_min": 60.0,
+        "rd_max": 350.0,
+        "rd_active_cap": 220.0,
+        "rd_inactivity_grace_days": 14,
+        "rd_inactivity_per_day": 4.0,
+        "inactivity_days": 0,
+        "pre_rating": 500.0,
+        "pre_rd": 300.0,
+        "pre_volatility": 0.06,
+        "post_rating": 563.5063196407643,
+        "post_rd": 174.54432489011668,
+        "post_volatility": 0.05999721003016358,
+        "rank": 3,
+        "field_size": 6,
+        "opponent_count": 5,
+        "tie_count": 0,
+        "primary_metric_value": 387024.0,
+        "secondary_metric_value": 1.0,
+        "best_single_score": 387024
+      }
+    },
+    {
+      "username": "Kotomi",
+      "display_name": "Kotomi",
+      "old_rating": 500.0,
+      "new_rating": 436.4936803592356,
+      "delta_rating": -63.50631964076439,
+      "old_deviation": 300.0,
+      "new_deviation": 174.54432489011668,
+      "placement": 4,
+      "field_size": 6,
+      "details": {
+        "algorithm": "glicko2_v1",
+        "initial_rating": 500.0,
+        "initial_rd": 300.0,
+        "initial_volatility": 0.06,
+        "tau": 0.5,
+        "rd_min": 60.0,
+        "rd_max": 350.0,
+        "rd_active_cap": 220.0,
+        "rd_inactivity_grace_days": 14,
+        "rd_inactivity_per_day": 4.0,
+        "inactivity_days": 0,
+        "pre_rating": 500.0,
+        "pre_rd": 300.0,
+        "pre_volatility": 0.06,
+        "post_rating": 436.4936803592356,
+        "post_rd": 174.54432489011668,
+        "post_volatility": 0.05999721003016358,
+        "rank": 4,
+        "field_size": 6,
+        "opponent_count": 5,
+        "tie_count": 0,
+        "primary_metric_value": 384672.0,
+        "secondary_metric_value": 1.0,
+        "best_single_score": 384672
+      }
+    },
+    {
+      "username": "32768player",
+      "display_name": "32768player",
+      "old_rating": 500.0,
+      "new_rating": 309.48103688758715,
+      "delta_rating": -190.51896311241285,
+      "old_deviation": 300.0,
+      "new_deviation": 174.5443268095099,
+      "placement": 5,
+      "field_size": 6,
+      "details": {
+        "algorithm": "glicko2_v1",
+        "initial_rating": 500.0,
+        "initial_rd": 300.0,
+        "initial_volatility": 0.06,
+        "tau": 0.5,
+        "rd_min": 60.0,
+        "rd_max": 350.0,
+        "rd_active_cap": 220.0,
+        "rd_inactivity_grace_days": 14,
+        "rd_inactivity_per_day": 4.0,
+        "inactivity_days": 0,
+        "pre_rating": 500.0,
+        "pre_rd": 300.0,
+        "pre_volatility": 0.06,
+        "post_rating": 309.48103688758715,
+        "post_rd": 174.5443268095099,
+        "post_volatility": 0.059998828684098726,
+        "rank": 5,
+        "field_size": 6,
+        "opponent_count": 5,
+        "tie_count": 0,
+        "primary_metric_value": 148148.0,
+        "secondary_metric_value": 1.0,
+        "best_single_score": 148148
+      }
+    },
+    {
+      "username": "skyskysky",
+      "display_name": "skyskysky",
+      "old_rating": 500.0,
+      "new_rating": 116.21808319320962,
+      "delta_rating": -383.7819168067904,
+      "old_deviation": 300.0,
+      "new_deviation": 191.89095840339525,
+      "placement": 6,
+      "field_size": 6,
+      "details": {
+        "algorithm": "glicko2_v1",
+        "initial_rating": 500.0,
+        "initial_rd": 300.0,
+        "initial_volatility": 0.06,
+        "tau": 0.5,
+        "rd_min": 60.0,
+        "rd_max": 350.0,
+        "rd_active_cap": 220.0,
+        "rd_inactivity_grace_days": 14,
+        "rd_inactivity_per_day": 4.0,
+        "inactivity_days": 0,
+        "pre_rating": 500.0,
+        "pre_rd": 300.0,
+        "pre_volatility": 0.06,
+        "post_rating": 116.21808319320962,
+        "post_rd": 191.89095840339525,
+        "post_volatility": 1.7659368949684653,
+        "rank": 6,
+        "field_size": 6,
+        "opponent_count": 5,
+        "tie_count": 0,
+        "primary_metric_value": 128892.0,
+        "secondary_metric_value": 1.0,
+        "best_single_score": 128892
+      }
+    }
+  ],
+  "summary": {
+    "player_count": 6,
+    "raw_score_count": 6,
+    "ranking_count": 6,
+    "rating_count": 6
+  }
+}

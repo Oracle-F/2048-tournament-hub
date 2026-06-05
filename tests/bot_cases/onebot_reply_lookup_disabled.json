@@ -1,0 +1,13 @@
+{
+  "name": "onebot reply lookup is disabled by default",
+  "description": "验证默认会跳过 OneBot reply 预查询，避免 reply 消息触发 get_msg 超时。",
+  "input": {
+    "target": "bot.patch_onebot_reply_lookup",
+    "args": {}
+  },
+  "expected": {
+    "patched": true,
+    "check_reply_name": "_skip_onebot_reply_lookup",
+    "check_reply_result": null
+  }
+}

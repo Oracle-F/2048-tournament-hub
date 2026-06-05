@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "snapshot_type": "verse_profile",
+  "source": "leaderboard/user",
+  "variant": "2x4",
+  "username": "snapshot_user_24",
+  "display_name": "Snapshot 24",
+  "generated_at": "2026-06-02T10:00:00+08:00",
+  "rating": 1710.0,
+  "rank": 5,
+  "totalGames": 2,
+  "hs": 33888,
+  "games": [
+    {
+      "id": "g2402",
+      "started_at": "2026-05-29T10:00:00Z",
+      "played_at": "2026-05-29T10:02:10Z",
+      "score": 33888,
+      "raw_score": 33888,
+      "final_score": 33888,
+      "variant": "2x4",
+      "board": [
+        [2, 4, 8, 16],
+        [32, 64, 128, 256]
+      ]
+    },
+    {
+      "id": "g2401",
+      "started_at": "2026-05-28T10:00:00Z",
+      "played_at": "2026-05-28T10:01:40Z",
+      "score": 32001,
+      "raw_score": 32001,
+      "final_score": 32001,
+      "variant": "2x4",
+      "board": [
+        [2, 4, 8, 16],
+        [32, 64, 128, 0]
+      ]
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "name": "group follow-up input does not consume rate limit",
+  "description": "验证群聊流程中的跟进输入不会消耗群命令配额，避免连续追问把 bot 推向刷屏态。",
+  "input": {
+    "target": "bot.group_should_consume_rate_limit",
+    "args": {
+      "message": "1",
+      "has_flow": true
+    }
+  },
+  "expected": {
+    "value": false
+  }
+}

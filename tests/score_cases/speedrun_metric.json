@@ -1,0 +1,20 @@
+{
+  "name": "speedrun metric uses primary_time_ms",
+  "description": "验证竞速赛的计分优先使用 primary_time_ms，而不是 raw_score 或 final_score。",
+  "input": {
+    "target": "score.metric_from_record",
+    "args": {
+      "competition_type": "speedrun",
+      "record": {
+        "raw_score": 99999,
+        "final_score": 88888,
+        "derived_metric_value": null,
+        "primary_time_ms": 54321
+      },
+      "ranking_metric": null
+    }
+  },
+  "expected": {
+    "value": 54321
+  }
+}

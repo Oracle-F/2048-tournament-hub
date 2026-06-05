@@ -1,90 +1,134 @@
 比赛模式扩展说明
 
-一、为什么要单独写这个文档
+一、当前目标
 
-这个项目的“比赛模式”不是一个简单枚举。
-不同模式会影响：
+把不同比赛模式的创建逻辑集中到模式目录里，避免以后每加一种模式都复制一套主办方菜单代码。
 
-- 报名入口
-- 提交入口
-- 成绩字段
-- 排序字段
-- 缺局策略
-- 是否需要锁局
-- 是否允许自动刷新
-- 是否纳入长期统榜
+当前模式目录文件：
 
-所以新增模式时，不能只加一个名字。
+services/competition_mode_service.py
 
-二、一个新模式通常要补哪些地方
+二、已接入主办方新建比赛的模式
 
-1. config/variants.json
-- 新增 variant
-- 定义 board 宽高、规则键、分类
+1. 经典 4x4 原始分
 
-2. config/rating_families.json
-- 如果属于新的评分家族，要补 family
+competition_type = classic_raw_score
+platform = 2048verse
+variant = 4x4
+rating bucket = classic_4x4_raw_score
+排序：分数越高越好
+成绩来源：Verse 锁局为主，也可导入补充成绩文件
 
-3. config/rating_buckets.json
-- 定义这个模式最终参与统榜和评分的 bucket
+2. Stone 4x4
 
-4. services/competition_mode_service.py
-- 让系统知道这个模式怎么展示、怎么分组、怎么默认配置
+competition_type = stone_x
+platform = taihe
+variant = 4x4
+rating bucket:
+stone_1k_4x4
+stone_2k_4x4
+排序：competition_score 越高越好
+成绩来源：成绩文件导入
 
-5. services/settlement_service.py
-- 让结算知道该读哪个字段、怎么排序、什么记录能入榜
+3. No-X 4x4
 
-6. importers/
-- 如果成绩来源不是现成格式，补解析器
+competition_type = no_x
+platform = taihe
+variant = 4x4
+rating bucket:
+no_1k_4x4
+no_2k_4x4
+no_8k_4x4
+no_16k_4x4
+排序：competition_score 越高越好
+成绩来源：成绩文件导入
 
-7. tests/
-- 一定要补回归案例
+4. Speedrun 4x4
 
-三、新模式的最小定义
+competition_type = speedrun
+platform = taihe
+variant = 4x4
+rating bucket:
+speedrun_1k_4x4
+speedrun_2k_4x4
+排序：primary_time_ms 越低越好
+成绩来源：成绩文件导入
 
-新增模式前，至少先确认下面几项：
+5. 斐波那契原始分
 
-- 平台来源
-- 计分字段
-- 排序方向
-- 是否多局
-- 多局如何聚合
-- 是否允许缺局
-- 是否需要锁局
-- 是否加入长期统榜
+competition_type = fibonacci_raw_score
+platform = taihe
+variant:
+fibonacci_3x3
+fibonacci_4x4
+fibonacci_5x5
+rating bucket:
+fibonacci_3x3_raw_score
+fibonacci_4x4_raw_score
+fibonacci_5x5_raw_score
+规则说明：1 和 1 可合成 2，2 和 3 可合成 5，3 和 5 可合成 8，依斐波那契序列推进
+排序：raw_score/final_score 越高越好
+成绩来源：成绩文件导入
 
-四、风险提示
+三、主办方入口
 
-如果这些问题没定就直接上线，很容易出现：
+计分器/organizer_event_hub.py
+2. 新建比赛
 
-- 结算口径和展示口径不一致
-- 统榜和单场结果冲突
-- 某些成绩被误排除或误纳入
-- 后续很难补救
+现在会从 competition_mode_service.py 读取模式列表：
 
-五、推荐做法
+经典 4x4 原始分
+Stone 4x4
+No-X 4x4
+Speedrun 4x4
 
-- 先把模式说明写清楚
-- 再补配置
-- 再补业务逻辑
-- 最后补测试
+四、成绩文件字段
 
-不要反过来。
+通用必填：
 
-六、当前已有模式举例
+username
 
-- 经典4x4：偏原始分赛
-- Stone：偏特殊原始分/边界规则赛
-- 2x4 / 3x3：偏限时计分赛
-- 3x4：可能要按新的积分或导入型口径单独定义
+通用可选：
 
-七、扩展建议
+display_name
+source_record_id
+started_at
+ended_at
+raw_score
+final_score
+score
+competition_score
+primary_time_ms
+target_tile_value
+score_before_target
+result_state
+evidence_json
+raw_payload_json
 
-如果某个模式已经开始重复出现、变体很多，建议：
+不同模式重点字段：
 
-- 先定义 family
-- 再把可复用字段抽出来
-- 再做 bucket 映射
-- 最后统一进统榜逻辑
+经典 4x4：
+raw_score 或 final_score
 
-这样后续维护会更稳。
+Stone：
+competition_score
+target_tile_value
+
+No-X：
+competition_score
+target_tile_value
+
+Speedrun：
+primary_time_ms
+target_tile_value
+
+斐波那契：
+raw_score 或 final_score
+
+五、后续新增模式的做法
+
+1. 如果只是新增目标值，先在 config/rating_buckets.json 增加 bucket。
+2. 在 services/event_admin_service.py 的 infer_rating_bucket_code 增加映射。
+3. 在 services/competition_mode_service.py 增加或扩展模式定义。
+4. 如果排序方向不同，确认 event_admin_service.default_rule_values 里的 ranking_order。
+5. 如果成绩字段不同，扩展 raw_score_file_parser 和 settlement_service。

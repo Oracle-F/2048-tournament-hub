@@ -1,0 +1,27 @@
+[
+  {
+    "code": "timed_scoring",
+    "name": "限时计分赛",
+    "description": "在时间窗口内按规则累计分数"
+  },
+  {
+    "code": "classic_raw_score",
+    "name": "经典原始分",
+    "description": "按游戏原始分结算"
+  },
+  {
+    "code": "stone_x",
+    "name": "Stone 模式",
+    "description": "最大目标块 stone 化，两个目标块彼此不再合并"
+  },
+  {
+    "code": "no_x",
+    "name": "No-X",
+    "description": "禁止合成指定目标块，按目标前分数结算"
+  },
+  {
+    "code": "speedrun",
+    "name": "竞速",
+    "description": "按完成目标用时或进度结算"
+  }
+]

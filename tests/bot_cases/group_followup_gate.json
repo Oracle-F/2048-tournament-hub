@@ -1,0 +1,14 @@
+{
+  "name": "group follow-up input is allowed while flow is active",
+  "description": "验证群聊在已有流程时，普通数字回复不会被错误拦截，能继续作为流程跟进输入。",
+  "input": {
+    "target": "bot.group_is_allowed_command",
+    "args": {
+      "message": "1",
+      "has_flow": true
+    }
+  },
+  "expected": {
+    "value": true
+  }
+}

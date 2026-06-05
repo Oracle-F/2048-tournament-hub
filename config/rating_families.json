@@ -1,0 +1,44 @@
+[
+  {
+    "code": "classic_4x4_family",
+    "name": "经典4x4系",
+    "description": "经典4x4高分与 Stone 模式相关项目",
+    "sort_order": 10,
+    "is_active": true
+  },
+  {
+    "code": "timed_scoring_family",
+    "name": "限时计分赛",
+    "description": "2x4、3x3 等限时累计积分项目",
+    "sort_order": 20,
+    "is_active": true
+  },
+  {
+    "code": "no_x_family",
+    "name": "No-X 系",
+    "description": "禁止合成指定目标块的4x4项目",
+    "sort_order": 30,
+    "is_active": true
+  },
+  {
+    "code": "speedrun_family",
+    "name": "竞速系",
+    "description": "以达成目标时间为核心指标的项目",
+    "sort_order": 40,
+    "is_active": true
+  },
+  {
+    "code": "fibonacci_family",
+    "name": "斐波那契系",
+    "description": "Taihe 斐波那契合成规则项目",
+    "sort_order": 50,
+    "is_active": true
+  },
+  {
+    "code": "points_series_family",
+    "name": "积分赛",
+    "description": "3x4 等按多局加权积分排名的项目",
+    "sort_order": 60,
+    "is_active": true
+  }
+]

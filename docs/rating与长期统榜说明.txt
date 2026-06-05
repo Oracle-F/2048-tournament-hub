@@ -1,68 +1,112 @@
-评分与长期统榜说明
+rating 与长期统榜第一版
 
-一、评分的分层
+一、目标
 
-当前项目里，评分/榜单不应只看单场结果，而是分成三层：
+当前版本先把长期统榜和 rating 的基础闭环打通：
 
-1. 原始成绩层
-- 记录一局的原始结果。
-- 对应 raw_score / final_score / competition_score / primary_time_ms 等字段。
+1. 从已经结算到 event_results 的正式计 rating 赛事生成 player_ratings。
+2. 按 rating_bucket 分项计算，不做综合 rating。
+3. 支持查看分项 rating 榜。
+4. 支持查看分项历史成绩榜。
+5. 支持导出长期统榜 txt/json。
 
-2. 赛事层
-- 记录某个 event 中，选手最终参与排名与结算的成绩。
-- 同一名选手在同一赛事里可能会有多个候选记录。
+二、计入 rating 的赛事条件
 
-3. 长期统榜层
-- 记录跨赛事、跨时间窗口的长期表现。
-- 不是单场结算的直接复制。
+赛事必须同时满足：
 
-二、长期统榜的基本原则
+1. events.is_rated = 1
+2. events.is_official = 1
+3. events.rating_bucket_id 不为空
+4. event_results 中至少有 2 名有名次和有效主指标的选手
 
-1. 统榜要稳定
-- 不要因为一次临时导入或一次锁局波动就大幅改变长期排行。
+现有历史导入默认 unrated，因此不会被自动计入。
 
-2. 统榜要可解释
-- 看到某个分数时，要能追溯到：
-  - 这是谁的
-  - 来自哪场比赛
-  - 当时用的是什么口径
+三、当前 rating 算法
 
-3. 统榜要尽量少手工修正
-- 能通过规则和来源数据推导的，尽量不要靠人工补表。
+当前使用 glicko2_v1：
 
-三、推荐口径
+1. 每场比赛内，按名次关系构造同场对局：高名次胜、低名次负、同名次平。
+2. 初始 rating = 1500，初始 RD = 350，初始 volatility = 0.06。
+3. 使用 Glicko2 标准更新（tau = 0.5），同时记录赛前/赛后 rating、RD、volatility。
+4. RD 下限 60、上限 350。
+5. 存在不活跃惩罚：长期不参赛会使 RD 回升，回归后可更快重新校准。
+6. 每次重算按赛事结束时间从早到晚完整回放，结果可重现。
 
-对于不同比赛类型，建议口径如下：
+四、主办方入口
 
-- 经典4x4 / Stone / 原始分赛：
-  - 以 raw_score 或 final_score 为主
-  - 一般按高分优先
+在 计分器/organizer_event_hub.py 主菜单新增：
 
-- 限时赛 / 竞速赛：
-  - 以 primary_time_ms 或目标达成时间为主
-  - 一般按更低更好
+12. 长期统榜与 rating
 
-- 特殊综合赛：
-  - 先看比赛规则文档里的 ranking_metric
-  - 再决定是分数型还是时间型
+子菜单包括：
 
-四、与代码的对应关系
+1. 查看 rating bucket
+2. 重算全部 rating
+3. 重算当前比赛所在 bucket
+4. 查看 rating 榜
+5. 查看历史成绩榜
+6. 导出长期统榜
 
-主要参考：
+如果当前比赛 is_rated = 1，结算比赛后会自动重算该比赛所在 bucket 的 rating。
 
-- services/rating_service.py
-- services/interim_ranking_service.py
-- services/settlement_service.py
-- config/rating_families.json
-- config/rating_buckets.json
+五、命令行脚本
 
-五、维护建议
+在 赛事中台 下可用：
 
-1. 新增一个比赛模式前，先决定长期统榜是否纳入。
-2. 如果要纳入，最好先定义：
-   - 评分字段
-   - 排序方向
-   - 缺局处理
-   - 平局处理
-3. 不要让统榜口径和单场赛事结算口径悄悄分叉。
-4. 发现口径分叉时，优先写清楚并统一规则，而不是重复人工补数据。
+scripts/recalculate_ratings.py --bucket classic_4x4_raw_score
+scripts/recalculate_ratings.py --event 赛事ID
+scripts/recalculate_ratings.py
+
+scripts/show_leaderboard.py --list-buckets
+scripts/show_leaderboard.py --bucket classic_4x4_raw_score --type rating
+scripts/show_leaderboard.py --bucket classic_4x4_raw_score --type performance
+scripts/show_leaderboard.py --bucket classic_4x4_raw_score --export
+
+六、导出位置
+
+长期统榜导出到：
+
+比赛导出/长期统榜/BUCKET_CODE
+
+当前会生成：
+
+长期统榜.txt
+长期统榜.json
+Rating榜.png
+
+七、选手档案
+
+选手档案用于后续 QQbot 查询和主办方查看选手历史信息。
+
+当前包含：
+
+1. 基本信息
+2. 平台账号
+3. 各 rating bucket 当前 rating
+4. 各 rating bucket 桶内排名
+5. 各分项最好正式赛成绩
+6. 最近比赛结果
+7. 最近 rating 变化
+
+主办方入口：
+
+计分器/organizer_event_hub.py
+12. 长期统榜与 rating
+7. 查看选手档案
+8. 导出选手档案
+
+命令行入口：
+
+scripts/show_player_profile.py 玩家名
+scripts/show_player_profile.py --player-id 1
+scripts/show_player_profile.py 玩家名 --search
+scripts/show_player_profile.py 玩家名 --export
+
+导出位置：
+
+比赛导出/选手档案/选手名
+
+当前会生成：
+
+选手档案.txt
+选手档案.json

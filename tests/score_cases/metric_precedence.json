@@ -1,0 +1,20 @@
+{
+  "name": "metric precedence uses final_score for classic raw score",
+  "description": "验证经典原始分在存在 final_score 时优先使用 final_score，而不是 raw_score。",
+  "input": {
+    "target": "score.metric_from_record",
+    "args": {
+      "competition_type": "classic_raw_score",
+      "record": {
+        "raw_score": 1200,
+        "final_score": 1180,
+        "derived_metric_value": null,
+        "primary_time_ms": null
+      },
+      "ranking_metric": null
+    }
+  },
+  "expected": {
+    "value": 1180
+  }
+}

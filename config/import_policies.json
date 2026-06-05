@@ -1,0 +1,14 @@
+{
+  "legacy_import_defaults": {
+    "is_official": false,
+    "is_rated": false,
+    "status": "archived",
+    "source": "legacy_export_import",
+    "tags": ["legacy_import", "unrated"]
+  },
+  "organizer_json_defaults": {
+    "platform_code": "2048verse",
+    "event_type": "timed_scoring",
+    "competition_type": "timed_scoring"
+  }
+}

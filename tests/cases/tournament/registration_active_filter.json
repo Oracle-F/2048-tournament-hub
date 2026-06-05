@@ -1,0 +1,52 @@
+[
+  {
+    "name": "active_only registration list hides cancelled rows",
+    "description": "验证按玩家列报名时，active_only=true 只返回仍然有效的报名，避免历史取消记录污染当前视图。",
+    "input": {
+      "target": "registration.list_player_registrations",
+      "args": {
+        "player_id": 1,
+        "platform_code": "2048verse",
+        "active_only": true
+      },
+      "seed_sql": [
+        "INSERT INTO players (id, display_name, status, created_at, updated_at) VALUES (1, 'Alpha', 'active', '2026-05-03 09:00:00', '2026-05-03 09:00:00');",
+        "INSERT INTO player_accounts (id, player_id, platform_id, account_key, account_name, account_display_name, is_primary, metadata_json, created_at, updated_at) VALUES (201, 1, (SELECT id FROM platforms WHERE code = '2048verse'), 'alpha_reg', 'alpha_reg', 'Alpha', 1, '{}', '2026-05-03 09:00:00', '2026-05-03 09:00:00');",
+        "INSERT INTO events (id, event_code, event_name, platform_id, variant_id, event_type, competition_type, status, is_official, is_rated, start_time, end_time, created_at, updated_at) VALUES (701, 'REG_ACTIVE_001', 'Active registration event', (SELECT id FROM platforms WHERE code = '2048verse'), (SELECT id FROM variants WHERE code = '4x4'), 'single_attempt', 'classic_raw_score', 'finished', 1, 0, '2026-05-10 10:00:00', '2026-05-10 11:00:00', '2026-05-03 09:00:00', '2026-05-10 11:00:00');",
+        "INSERT INTO events (id, event_code, event_name, platform_id, variant_id, event_type, competition_type, status, is_official, is_rated, start_time, end_time, created_at, updated_at) VALUES (702, 'REG_CANCELLED_001', 'Cancelled registration event', (SELECT id FROM platforms WHERE code = '2048verse'), (SELECT id FROM variants WHERE code = '4x4'), 'single_attempt', 'classic_raw_score', 'finished', 1, 0, '2026-05-09 10:00:00', '2026-05-09 11:00:00', '2026-05-03 09:00:00', '2026-05-09 11:00:00');",
+        "INSERT INTO registrations (id, event_id, player_id, registered_via, status, metadata_json, registered_at) VALUES (801, 701, 1, 'manual', 'active', '{}', '2026-05-03 09:10:00');",
+        "INSERT INTO registrations (id, event_id, player_id, registered_via, status, metadata_json, registered_at) VALUES (802, 702, 1, 'manual', 'cancelled', '{\"cancelled_at\":\"2026-05-03 09:20:00\"}', '2026-05-03 09:20:00');"
+      ]
+    },
+    "expected": {
+      "count": 1,
+      "event_codes": ["REG_ACTIVE_001"],
+      "statuses": ["active"]
+    }
+  },
+  {
+    "name": "full registration list still keeps cancelled history",
+    "description": "验证在不启用 active_only 时，历史取消报名仍可被查询到，便于交接和事故回溯。",
+    "input": {
+      "target": "registration.list_player_registrations",
+      "args": {
+        "player_id": 1,
+        "platform_code": "2048verse",
+        "active_only": false
+      },
+      "seed_sql": [
+        "INSERT INTO players (id, display_name, status, created_at, updated_at) VALUES (1, 'Alpha', 'active', '2026-05-03 09:00:00', '2026-05-03 09:00:00');",
+        "INSERT INTO player_accounts (id, player_id, platform_id, account_key, account_name, account_display_name, is_primary, metadata_json, created_at, updated_at) VALUES (201, 1, (SELECT id FROM platforms WHERE code = '2048verse'), 'alpha_reg', 'alpha_reg', 'Alpha', 1, '{}', '2026-05-03 09:00:00', '2026-05-03 09:00:00');",
+        "INSERT INTO events (id, event_code, event_name, platform_id, variant_id, event_type, competition_type, status, is_official, is_rated, start_time, end_time, created_at, updated_at) VALUES (701, 'REG_ACTIVE_001', 'Active registration event', (SELECT id FROM platforms WHERE code = '2048verse'), (SELECT id FROM variants WHERE code = '4x4'), 'single_attempt', 'classic_raw_score', 'finished', 1, 0, '2026-05-10 10:00:00', '2026-05-10 11:00:00', '2026-05-03 09:00:00', '2026-05-10 11:00:00');",
+        "INSERT INTO events (id, event_code, event_name, platform_id, variant_id, event_type, competition_type, status, is_official, is_rated, start_time, end_time, created_at, updated_at) VALUES (702, 'REG_CANCELLED_001', 'Cancelled registration event', (SELECT id FROM platforms WHERE code = '2048verse'), (SELECT id FROM variants WHERE code = '4x4'), 'single_attempt', 'classic_raw_score', 'finished', 1, 0, '2026-05-09 10:00:00', '2026-05-09 11:00:00', '2026-05-03 09:00:00', '2026-05-09 11:00:00');",
+        "INSERT INTO registrations (id, event_id, player_id, registered_via, status, metadata_json, registered_at) VALUES (801, 701, 1, 'manual', 'active', '{}', '2026-05-03 09:10:00');",
+        "INSERT INTO registrations (id, event_id, player_id, registered_via, status, metadata_json, registered_at) VALUES (802, 702, 1, 'manual', 'cancelled', '{\"cancelled_at\":\"2026-05-03 09:20:00\"}', '2026-05-03 09:20:00');"
+      ]
+    },
+    "expected": {
+      "count": 2,
+      "event_codes": ["REG_ACTIVE_001", "REG_CANCELLED_001"],
+      "statuses": ["active", "cancelled"]
+    }
+  }
+]

@@ -1,0 +1,64 @@
+{
+  "cases": [
+    {
+      "name": "no-x 1k bucket mapping",
+      "description": "验证 No-X 4x4 的 1024 边界值会映射到 1k bucket。",
+      "input": {
+        "target": "mode.infer_rating_bucket_code",
+        "args": {
+          "variant_code": "4x4",
+          "competition_type": "no_x",
+          "target_value": 1024
+        }
+      },
+      "expected": {
+        "value": "no_1k_4x4"
+      }
+    },
+    {
+      "name": "no-x 2k bucket mapping",
+      "description": "验证 No-X 4x4 的 2048 边界值会映射到 2k bucket。",
+      "input": {
+        "target": "mode.infer_rating_bucket_code",
+        "args": {
+          "variant_code": "4x4",
+          "competition_type": "no_x",
+          "target_value": 2048
+        }
+      },
+      "expected": {
+        "value": "no_2k_4x4"
+      }
+    },
+    {
+      "name": "no-x 8k bucket mapping",
+      "description": "验证 No-X 4x4 的 8192 边界值会映射到 8k bucket。",
+      "input": {
+        "target": "mode.infer_rating_bucket_code",
+        "args": {
+          "variant_code": "4x4",
+          "competition_type": "no_x",
+          "target_value": 8192
+        }
+      },
+      "expected": {
+        "value": "no_8k_4x4"
+      }
+    },
+    {
+      "name": "no-x 16k bucket mapping",
+      "description": "验证 No-X 4x4 的 16384 边界值会映射到 16k bucket。",
+      "input": {
+        "target": "mode.infer_rating_bucket_code",
+        "args": {
+          "variant_code": "4x4",
+          "competition_type": "no_x",
+          "target_value": 16384
+        }
+      },
+      "expected": {
+        "value": "no_16k_4x4"
+      }
+    }
+  ]
+}
