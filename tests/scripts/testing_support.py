@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import shutil
 import os
+import uuid
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -9,6 +11,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DATA_DIR = PROJECT_ROOT / "data"
 TEST_DATABASE_PATH = DATA_DIR / "testing.db"
 PRODUCTION_DATABASE_PATH = DATA_DIR / "tournament_hub.sqlite3"
+TEST_TEMP_ROOT = DATA_DIR / "tmp" / "tests"
 
 
 def set_test_database_environment() -> None:
@@ -18,6 +21,10 @@ def set_test_database_environment() -> None:
 
 def ensure_test_database_parent() -> None:
     TEST_DATABASE_PATH.parent.mkdir(parents=True, exist_ok=True)
+
+
+def ensure_test_temp_root() -> None:
+    TEST_TEMP_ROOT.mkdir(parents=True, exist_ok=True)
 
 
 def reset_test_database() -> None:
@@ -43,6 +50,17 @@ def bootstrap_test_database() -> None:
             bootstrap_all(connection)
     finally:
         connection.close()
+
+
+@contextmanager
+def test_temporary_directory(prefix: str):
+    ensure_test_temp_root()
+    temp_dir = TEST_TEMP_ROOT / "{}{}".format(prefix, uuid.uuid4().hex)
+    temp_dir.mkdir(parents=True, exist_ok=False)
+    try:
+        yield temp_dir
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
 
 
 @contextmanager

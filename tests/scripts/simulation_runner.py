@@ -2,13 +2,12 @@ from __future__ import annotations
 
 import argparse
 import json
-import tempfile
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from .testing_support import PROJECT_ROOT, fresh_test_connection, set_test_database_environment
+from .testing_support import PROJECT_ROOT, fresh_test_connection, set_test_database_environment, test_temporary_directory
 
 
 set_test_database_environment()
@@ -280,8 +279,7 @@ def run_scenario(scenario: dict[str, Any], *, emit_lines: bool = True):
                 print("[SIM] {}".format(_scenario_title(scenario)))
                 print("创建赛事成功")
 
-            with tempfile.TemporaryDirectory(prefix="tournament_sim_") as temp_dir_name:
-                temp_dir = Path(temp_dir_name)
+            with test_temporary_directory(prefix="tournament_sim_") as temp_dir:
                 score_file = _write_score_file(temp_dir, scenario)
                 imported = None
                 with transaction(connection):

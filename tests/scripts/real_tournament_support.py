@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import sqlite3
-import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -14,6 +13,7 @@ from services.rating_service import recalculate_event_bucket_ratings
 from services.raw_score_import_service import import_score_file
 from services.settlement_service import build_ranked_results, settle_event
 from settings import PRODUCTION_DATABASE_PATH
+from .testing_support import test_temporary_directory
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -444,8 +444,7 @@ def replay_real_tournament_snapshot(connection, snapshot):
     _compare_rule_set_rows(rule_set, normalize_rule_set_row(actual_rule_row), diffs)
 
     import_summary = None
-    with tempfile.TemporaryDirectory(prefix="real_tournament_import_") as temp_dir_name:
-        temp_dir = Path(temp_dir_name)
+    with test_temporary_directory(prefix="real_tournament_import_") as temp_dir:
         score_file = temp_dir / "{}.json".format(event["event_code"])
         score_file.write_text(json.dumps(snapshot["raw_scores"], ensure_ascii=False, indent=2), encoding="utf-8")
         with transaction(connection):
