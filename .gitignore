@@ -13,3 +13,7 @@ data/discord_review_files/
 data/switch_backups/
 data/tournament_hub.sqlite3
 data/tournament_hub.backup_*.sqlite3
+比赛导出/
+计分器/*.html
+计分器/*.json
+计分器/*.log
