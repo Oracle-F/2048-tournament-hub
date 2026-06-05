@@ -19,7 +19,7 @@
 4. `tests/ranking_cases`
 5. `tests/tournament_cases`
 6. `tests/api_snapshots`
-7. `tests/real_tournaments`
+7. `tests/real_tournaments`（若仓库未随附样本，可视为可选）
 
 ## 运行规则
 

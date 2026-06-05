@@ -15,7 +15,7 @@
 * `ranking_cases/`：排名与榜单相关案例
 * `tournament_cases/`：赛事结算与赛程相关案例
 * `bot_cases/`：Bot 消息解析与分流相关案例
-* `real_tournaments/`：已结束赛事的真实快照，可用于结算回放
+* `real_tournaments/`：真实赛事回放样本目录；公开版可能不随仓库一起提供样本文件
 * `api_snapshots/`：第三方接口快照，可离线验证解析兼容性，支持按变体拆分
 * `scripts/`：测试加载器和辅助脚本
 * `run_all.py`：一键运行全部测试
@@ -41,7 +41,7 @@ python tests/scripts/run_cases.py --pattern ranking
 python tests/run_all.py
 ```
 
-这个入口会依次跑历史 Bug、计分、排名、赛事、真实赛事回放、API 快照和模拟器。
+这个入口会依次跑历史 Bug、计分、排名、赛事、真实赛事回放支持、API 快照和模拟器。
 
 快速跑一版完整套件，跳过最重的 1000 人模拟：
 
@@ -114,7 +114,7 @@ python tests/scripts/api_snapshot_runner.py
 
 真实赛事快照和 API 快照也默认走测试环境：
 
-* 真实赛事快照从正式库导出，落到 `tests/real_tournaments/`
+* 真实赛事快照支持会默认读取 `tests/real_tournaments/`，如果公开版没有样本文件则跳过相关样本运行
 * 回放时会重建赛事、导入原始成绩、生成排名、计算积分并执行结算
 * API 快照放在 `tests/api_snapshots/`
 * 启用 API 快照时通过 `VERSE_API_SNAPSHOT_DIR` 显式指定目录，不影响默认线上调用

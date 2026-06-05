@@ -1,40 +1,27 @@
-# 赛事中台项目约定
+# Repository Guidance
 
-这份文件给后续接手的 Agent 看的，目标是保持测试体系、文档体系和历史问题库长期可维护。
+This file keeps the default working assumptions for maintainers and automated agents.
 
-## 工作默认值
+## Safety First
 
-- 测试默认只用 `data/testing.db`，不要碰正式数据。
-- 不要并行跑多个会重建 `testing.db` 的入口。
-- 新发现的重要 Bug，先修复，再补 `tests/cases`、真实快照或回放样本。
-- 优先复用现有业务代码，不要重写计分、排名、结算逻辑。
+- Use `data/testing.db` for test runs by default.
+- Do not run multiple entry points at the same time if they rebuild `testing.db`.
+- Keep secrets, tokens, and private environment values out of version control.
 
-## 维护优先级
+## Change Priorities
 
-如果要继续维护，请优先判断属于哪一类：
+1. Stability
+2. Test coverage
+3. Data compatibility
 
-1. 规则回归
-2. 真实赛事回放
-3. API 快照兼容性
-4. 模拟压力验证
-5. 文档 / 历史问题归档
+## When Changing Behavior
 
-## 测试入口
+- Prefer small, targeted fixes over broad rewrites.
+- Reuse existing business logic before introducing new paths.
+- Add or update regression coverage when behavior changes.
+- If a change may affect data structures or persisted data, explain the impact clearly before expanding the scope.
 
-- `tests/run_all.py` 是总入口。
-- `--fast` 只跳过最重的 1000 人模拟。
-- 真实赛事快照和 API 快照是长期资产，优先保留和复用。
-- 新增或修改行为后，优先补对应的 `tests/bot_cases`、`tests/score_cases`、`tests/ranking_cases`、`tests/tournament_cases`。
+## Documentation
 
-## 文档维护
-
-- 当前持续关注的问题写进 `docs/bug_history.md`。
-- 已稳定、无需继续盯的问题迁移到 `docs/bug_archive.md`。
-- 事故脉络写进 `docs/incident_timeline.md` 或对应月度文件。
-- `docs/agent_handoff.md` 保持为新接手者的快速入口。
-
-## 额外约束
-
-- 只在必要时修改文档，不要为了说明而重写业务说明书。
-- 保持改动小而准，优先修根因。
-- 如果发现会影响账号稳定性、群聊风控或数据库锁竞争，先止血再扩功能。
+- Keep the top-level README public-facing.
+- Keep operational notes and private workflows out of the public release.
