@@ -283,4 +283,3 @@ def ingest_parsed_event(connection, parsed):
 def ingest_organizer_json_file(connection, file_path: Path):
     parsed = parse_organizer_ranking_json(file_path)
     return ingest_parsed_event(connection, parsed)
-
