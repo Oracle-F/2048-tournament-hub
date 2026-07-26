@@ -245,6 +245,15 @@ class OfficialQQEntrypointTests(TestCase):
         self.assertIn(start, rendered)
         self.assertLess(rendered.index(preflight), rendered.index(start))
 
+    def test_systemd_template_recovers_clean_exit_without_restart_storm(self):
+        rendered = SERVICE_TEMPLATE_PATH.read_text(encoding="utf-8")
+
+        self.assertIn("Restart=always", rendered)
+        self.assertNotIn("Restart=on-failure", rendered)
+        self.assertIn("RestartSec=15", rendered)
+        self.assertIn("StartLimitIntervalSec=300", rendered)
+        self.assertIn("StartLimitBurst=5", rendered)
+
     def test_systemd_environment_template_is_official_only_and_safe(self):
         rendered = ENVIRONMENT_TEMPLATE_PATH.read_text(encoding="utf-8")
         values = {}

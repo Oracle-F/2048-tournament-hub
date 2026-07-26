@@ -145,6 +145,9 @@ Fedora systemd 的未启用模板见
 `--preflight`，核验 SDK、本地读写权限、快照/榜图哈希和当日持久投递状态，
 只有通过才执行真实 `--start`。其中路径和服务账号都是占位符，当前没有
 安装、enable 或 start。
+unit 使用 `Restart=always` 覆盖 SDK 循环的失败退出和意外正常返回，
+间隔 15 秒，并以 5 分钟最多 5 次限制启动风暴；显式 `systemctl stop`
+仍按 systemd 的停止语义关闭服务。
 与 unit 一一对应的无密钥环境模板是
 `deploy/systemd/official-qq-bot.env.example`；它不包含 OneBot、NapCat 或
 Discord 配置，并默认关闭运行和定时发送。部署主机创建 `eventbot` 账号后，
