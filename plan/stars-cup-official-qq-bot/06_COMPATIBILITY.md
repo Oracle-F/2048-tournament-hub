@@ -12,7 +12,7 @@ No offline result can satisfy level 3.
 | --- | --- | --- | --- | --- |
 | 群星杯总榜/队伍/玩家/我的查分 | snapshot service tests | real snapshot group-event fixture | Offline complete | authorized group-@ canary |
 | 每日生成两张榜图 | daily service + fast suite | scheduler/preflight artifacts | Offline complete | approved roster/time and live Verse window |
-| 每日主动发送两图 | delivery idempotency tests | proactive media + scheduler tests | Offline complete | relationship state work, then two-image canary and three scheduled days |
+| 每日主动发送两图 | delivery idempotency tests | proactive media + scheduler tests | Offline complete | two-image canary and three scheduled days |
 | C2C 帮助文字/图片 | Bot/help tests | official help-image fixture | Offline complete | authorized C2C canary |
 | 绑定/解绑 | binding guardrails | full official PIN flow | Offline complete | real `qq_official` identity canary |
 | Verse 公共查分 | service/Bot cases | official C2C service fixture | Offline complete | live latency/response canary |
@@ -80,4 +80,4 @@ First-party sources:
 3. One proactive total image, inspect receipt/audit, then one detail image.
 4. Enable scheduler only after relationship and media evidence are confirmed.
 5. Observe three daily deliveries with OneBot kept available.
-6. Restore remaining partial rows in small tested batches.
+6. Record canary evidence, then decide score submission and legacy cleanup separately.

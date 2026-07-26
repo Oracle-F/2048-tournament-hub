@@ -2,11 +2,12 @@
 
 ## Executive result
 
-The transport boundary and the two priority Stars Cup workflows are implemented
-and verified offline. The remaining work is not a second rewrite: it is a small
-reliability batch around relationship events, scheduler failure semantics,
-restart evidence and explicit official-route fixtures. Real QQ availability is
-still unproven because no authorized login, send or platform inspection occurred.
+The transport boundary, both priority Stars Cup workflows, the relationship and
+scheduler reliability layer, and every currently named legacy flow are
+implemented and verified offline. Remaining work is exclusively authorized
+platform validation, deployment evidence and the separate score-submission
+product decision. Real QQ availability is still unproven because no authorized
+login, send or platform inspection occurred.
 
 ## Evidence ledger
 
@@ -78,10 +79,10 @@ still unproven because no authorized login, send or platform inspection occurred
 - No reason to alter event_hub, scoring, Verse cache, snapshot schema, renderer,
   database schema or OneBot rollback code.
 
-## First implementation handoff
+## Authorization handoff
 
-The implementation batch, full sequential regression and actual-SDK offline
-preflight are complete. Remaining actions require explicit authorization or
-product choices: inspect official platform state, run passive/proactive
-canaries, decide whether score submission may be enabled, and only later
-consider removing legacy OneBot compatibility.
+All currently scoped offline implementation, sequential regression and
+actual-SDK preflight work is complete. Remaining actions require explicit
+authorization or product choices: inspect official platform state, run
+passive/proactive canaries, decide whether score submission may be enabled,
+and only later consider removing legacy OneBot compatibility.
