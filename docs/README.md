@@ -105,9 +105,11 @@
 
 安装 SDK 后可执行更强的离线 preflight；它会构造并关闭真实 Client、核对
 Intent 和 API facade。若群星杯定时开关已打开，还会重新验证 latest
-快照与两张榜图哈希，但仍不登录或联网。输出中的
-`platform_readiness` 会把应用审核、Intent 实际授权、富媒体权限和真实
-回执保持为 `UNKNOWN`；本地 intent 数值通过不代表平台已经授权：
+快照与两张榜图哈希，但仍不登录或联网。
+已分类的配置/产物错误保留稳定错误码；其他 preflight 异常只输出异常类型，
+不会把异常文本、内部路径或潜在敏感值写入终端/systemd journal。
+输出中的 `platform_readiness` 会把应用审核、Intent 实际授权、富媒体权限和
+真实回执保持为 `UNKNOWN`；本地 intent 数值通过不代表平台已经授权：
 
 ```bash
 ./.venv/bin/python scripts/run_official_qq_bot.py --preflight

@@ -118,6 +118,65 @@ class OfficialQQEntrypointTests(TestCase):
         run.assert_not_called()
         self.assertIn('"status": "preflight_passed"', output.getvalue())
 
+    def test_preflight_redacts_unexpected_exception(self):
+        with TemporaryDirectory() as temp_dir:
+            database = Path(temp_dir) / "bot.sqlite3"
+            database.touch()
+            error = io.StringIO()
+            with patch.dict(
+                "os.environ",
+                self._environment(database),
+                clear=True,
+            ), patch.object(
+                entrypoint,
+                "preflight_official_qq_bot",
+                side_effect=RuntimeError(
+                    "private-app-secret /internal/private/path"
+                ),
+            ), patch.object(
+                entrypoint,
+                "run_official_qq_bot",
+            ) as run, patch("sys.stderr", error):
+                result = runtime_main(["--preflight"])
+
+        rendered = error.getvalue()
+        self.assertEqual(result, 1)
+        run.assert_not_called()
+        self.assertIn('"status": "failed"', rendered)
+        self.assertIn('"error_type": "RuntimeError"', rendered)
+        self.assertIn('"network_started": false', rendered)
+        self.assertNotIn("private-app-secret", rendered)
+        self.assertNotIn("/internal/private/path", rendered)
+        self.assertNotIn("Traceback", rendered)
+
+    def test_preflight_preserves_known_failure_code(self):
+        with TemporaryDirectory() as temp_dir:
+            database = Path(temp_dir) / "bot.sqlite3"
+            database.touch()
+            error = io.StringIO()
+            with patch.dict(
+                "os.environ",
+                self._environment(database),
+                clear=True,
+            ), patch.object(
+                entrypoint,
+                "preflight_official_qq_bot",
+                side_effect=entrypoint.OfficialRuntimeConfigError(
+                    "群星杯 latest 产物校验失败",
+                    code="stars_cup_snapshot_invalid",
+                ),
+            ), patch("sys.stderr", error):
+                result = runtime_main(["--preflight"])
+
+        rendered = error.getvalue()
+        self.assertEqual(result, 2)
+        self.assertIn('"status": "blocked"', rendered)
+        self.assertIn(
+            '"code": "stars_cup_snapshot_invalid"',
+            rendered,
+        )
+        self.assertNotIn("Traceback", rendered)
+
     def test_systemd_template_runs_offline_preflight_before_start(self):
         rendered = SERVICE_TEMPLATE_PATH.read_text(encoding="utf-8")
         preflight = (

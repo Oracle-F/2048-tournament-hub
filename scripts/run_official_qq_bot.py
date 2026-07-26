@@ -81,6 +81,19 @@ def main(argv: list[str] | None = None) -> int:
                 file=sys.stderr,
             )
             return 2
+        except Exception as exc:
+            print(
+                json.dumps(
+                    {
+                        "status": "failed",
+                        "error_type": type(exc).__name__,
+                        "network_started": False,
+                    },
+                    ensure_ascii=False,
+                ),
+                file=sys.stderr,
+            )
+            return 1
         print(
             json.dumps(
                 {
