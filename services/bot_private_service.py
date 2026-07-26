@@ -54,6 +54,14 @@ from services.timed_reservation_service import (
 )
 from services.verse_query_service import handle_verse_query_message, is_verse_query_message
 from services.settlement_service import settle_event
+from services.stars_cup_bot_service import (
+    StarsCupQueryError,
+    StarsCupSnapshotUnavailable,
+    build_stars_cup_query_reply,
+    is_stars_cup_query_message,
+    load_latest_stars_cup_snapshot,
+    parse_stars_cup_query,
+)
 from settings import LOCAL_TIMEZONE
 
 
@@ -444,6 +452,8 @@ def _is_top_level_command(message):
         return False
     if is_verse_query_message(text):
         return True
+    if is_stars_cup_query_message(text):
+        return True
     exact = {
         "help",
         "帮助",
@@ -570,7 +580,8 @@ def _group_help_summary():
     if image:
         return image
     return (
-        "群聊可用命令：赛事、报名、我的成绩、预约、提交成绩、floor、finish。\n"
+        "群聊可用命令：群星杯、赛事、报名、我的成绩、预约、提交成绩、floor、finish。\n"
+        "群星杯：/群星杯、/群星杯 A、/群星杯 玩家名、/群星杯 我。\n"
         "查询语法：/[用户名] 指令（用户名可省略）。\n"
         "个人看板：/用户名。\n"
         "绑定请私聊 bot 发送“绑定”，并设置4-5位绑定密码。\n"
@@ -657,6 +668,8 @@ def _group_is_allowed_command(message, *, has_flow):
         return True
     if is_verse_query_message(normalized):
         return True
+    if is_stars_cup_query_message(normalized):
+        return True
     if _is_dashboard_query_message(normalized):
         return True
     return normalized.startswith(("绑定 ", "提交成绩 ", "提交 "))
@@ -689,6 +702,47 @@ def _handle_group_dashboard_query(connection, *, message):
         player_id=target["player_id"],
     )
     return format_dashboard_reply(target.get("account_key") or target.get("display_name") or normalized, dashboard)
+
+
+def handle_stars_cup_group_query(
+    connection,
+    *,
+    bot_platform,
+    bot_user_id,
+    message,
+):
+    try:
+        query = parse_stars_cup_query(message)
+    except StarsCupQueryError as exc:
+        return str(exc)
+    if query is None:
+        return None
+
+    bound_account = None
+    if query.kind == "self":
+        binding = get_bot_binding(
+            connection,
+            bot_platform=bot_platform,
+            bot_user_id=bot_user_id,
+            game_platform="2048verse",
+        )
+        if binding is not None:
+            bound_account = binding.get("account_key")
+    try:
+        loaded = load_latest_stars_cup_snapshot()
+        return build_stars_cup_query_reply(
+            loaded,
+            query,
+            bound_verse_account=bound_account,
+        )
+    except StarsCupQueryError as exc:
+        return str(exc)
+    except StarsCupSnapshotUnavailable as exc:
+        LOGGER.warning("stars cup snapshot unavailable: %s", exc.reason)
+        return "群星杯榜单暂不可用，请稍后再试。"
+    except Exception:
+        LOGGER.exception("unexpected stars cup query failure")
+        return "群星杯榜单暂不可用，请稍后再试。"
 
 
 def _is_dashboard_query_message(message):
@@ -1457,9 +1511,15 @@ def _wrap_text(text, max_chars):
     return lines
 
 
+def _help_font(size, *, bold=False):
+    from services.match_rank_image_service import _font
+
+    return _font(size, bold=bold)
+
+
 def _build_help_image(path, title, sections):
     try:
-        from PIL import Image, ImageDraw, ImageFont
+        from PIL import Image, ImageDraw
     except Exception:
         return False
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -1488,18 +1548,11 @@ def _build_help_image(path, title, sections):
 
     image = Image.new("RGB", (width, height), "#1c1f33")
     draw = ImageDraw.Draw(image)
-    try:
-        title_font = ImageFont.truetype("C:/Windows/Fonts/msyhbd.ttc", 46)
-        section_font = ImageFont.truetype("C:/Windows/Fonts/msyhbd.ttc", 30)
-        cmd_font = ImageFont.truetype("C:/Windows/Fonts/msyhbd.ttc", 28)
-        note_font = ImageFont.truetype("C:/Windows/Fonts/msyh.ttc", 22)
-        foot_font = ImageFont.truetype("C:/Windows/Fonts/msyhbd.ttc", 22)
-    except Exception:
-        title_font = ImageFont.load_default()
-        section_font = ImageFont.load_default()
-        cmd_font = ImageFont.load_default()
-        note_font = ImageFont.load_default()
-        foot_font = ImageFont.load_default()
+    title_font = _help_font(46, bold=True)
+    section_font = _help_font(30, bold=True)
+    cmd_font = _help_font(28, bold=True)
+    note_font = _help_font(22)
+    foot_font = _help_font(22, bold=True)
 
     # page card (dark glass)
     draw.rounded_rectangle((14, 14, width - 14, height - 14), radius=26, fill="#222842", outline="#5f6e98", width=2)
@@ -1587,11 +1640,12 @@ def _help_image_cq(mode="player"):
         ]
         title = "QQ Bot 选手帮助"
     elif mode == "group":
-        path = HELP_IMAGE_DIR / "group_help.png"
+        path = HELP_IMAGE_DIR / "group_help_stars_cup.png"
         sections = [
             {
                 "title": "比赛功能（需@bot）",
                 "items": [
+                    {"cmd": "@bot 群星杯", "note": "查看群星杯队榜/队伍/个人成绩"},
                     {"cmd": "@bot help", "note": "查看群聊命令图"},
                     {"cmd": "@bot 绑定", "note": "按提示绑定verse账号"},
                     {"cmd": "@bot 查看赛事", "note": "查看赛事列表"},
@@ -3327,6 +3381,22 @@ def handle_group_message(
     if _group_should_consume_rate_limit(message, has_flow=existing_flow is not None) and not _consume_group_global_rate_limit(group_id):
         _append_group_debug("reply reason=global_rate_limit group_id={} user_id={}".format(group_id, bot_user_id))
         return "群里请求太多了，请稍后再试。"
+
+    stars_cup_reply = handle_stars_cup_group_query(
+        connection,
+        bot_platform=bot_platform,
+        bot_user_id=bot_user_id,
+        message=message,
+    )
+    if stars_cup_reply is not None:
+        _append_group_debug(
+            "reply reason=stars_cup group_id={} user_id={} text={!r}".format(
+                group_id,
+                bot_user_id,
+                message,
+            )
+        )
+        return stars_cup_reply
 
     dashboard_reply = _handle_group_dashboard_query(connection, message=message)
     if dashboard_reply is not None:

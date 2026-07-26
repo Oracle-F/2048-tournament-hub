@@ -11,6 +11,6 @@
     }
   },
   "expected": {
-    "reply": "[CQ:image,file={{PROJECT_ROOT_URI}}/data/bot_help_images/group_help.png]"
+    "reply": "[CQ:image,file={{PROJECT_ROOT_URI}}/data/bot_help_images/group_help_stars_cup.png]"
   }
 }
