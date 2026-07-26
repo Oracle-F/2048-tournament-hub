@@ -27,7 +27,7 @@
 - [x] 10. Implement durable scheduler reconciliation without changing delivery JSON schema unless tests prove necessary.
 - [x] 11. Add official C2C end-to-end fixtures for `赛事`, `我的报名`, `我的成绩`, `我的档案` and `更多`.
 - [x] 12. Update `.env.bot.example`/`docs/README.md` only for actual new state/report behavior.
-- [x] 13. Run focused official tests, current 15 basic, Bot 47/47, 218 full unittest and fast suite sequentially.
+- [x] 13. Run focused official tests, current 15 basic, Bot 47/47, 219 full unittest and fast suite sequentially.
 - [x] 14. Inspect diff, commit only allowed files and push the feature branch.
 
 ## Operational hardening — completed offline
@@ -37,6 +37,7 @@
 - [x] Restart an unexpectedly stopped scheduler task with redacted logging and bounded retry delay.
 - [x] Redact unexpected preflight failures while preserving stable known error codes.
 - [x] Validate database and daily-job local storage permissions without creating probe files or exposing paths.
+- [x] Add a dedicated, secret-free systemd environment template with all network/send behavior disabled.
 
 ## First minimum change
 - Files: `tests/test_official_qq_scheduler.py`, then `bot_official_qq/scheduler.py`.

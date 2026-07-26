@@ -19,6 +19,9 @@ ENTRYPOINT_PATH = PROJECT_ROOT / "scripts" / "run_official_qq_bot.py"
 SERVICE_TEMPLATE_PATH = (
     PROJECT_ROOT / "deploy" / "systemd" / "official-qq-bot.service.example"
 )
+ENVIRONMENT_TEMPLATE_PATH = (
+    PROJECT_ROOT / "deploy" / "systemd" / "official-qq-bot.env.example"
+)
 ENTRYPOINT_SPEC = importlib.util.spec_from_file_location(
     "official_qq_entrypoint_under_test",
     ENTRYPOINT_PATH,
@@ -191,6 +194,55 @@ class OfficialQQEntrypointTests(TestCase):
         self.assertIn(preflight, rendered)
         self.assertIn(start, rendered)
         self.assertLess(rendered.index(preflight), rendered.index(start))
+
+    def test_systemd_environment_template_is_official_only_and_safe(self):
+        rendered = ENVIRONMENT_TEMPLATE_PATH.read_text(encoding="utf-8")
+        values = {}
+        for raw_line in rendered.splitlines():
+            line = raw_line.strip()
+            if not line or line.startswith("#"):
+                continue
+            name, value = line.split("=", 1)
+            values[name] = value
+
+        self.assertEqual(values["OFFICIAL_QQ_BOT_ENABLED"], "false")
+        self.assertEqual(values["OFFICIAL_QQ_APP_ID"], "")
+        self.assertEqual(values["OFFICIAL_QQ_APP_SECRET"], "")
+        self.assertEqual(values["OFFICIAL_QQ_BOT_SANDBOX"], "true")
+        self.assertEqual(
+            values["OFFICIAL_QQ_BOT_PRODUCTION_CONFIRMED"],
+            "false",
+        )
+        self.assertEqual(
+            values["OFFICIAL_QQ_STARS_CUP_SCHEDULE_ENABLED"],
+            "false",
+        )
+        self.assertEqual(
+            values["OFFICIAL_QQ_DATABASE_PATH"],
+            "/opt/2048-event/赛事中台/data/tournament_hub.sqlite3",
+        )
+        self.assertTrue(
+            values[
+                "OFFICIAL_QQ_STARS_CUP_RELATIONSHIP_STATE_PATH"
+            ].startswith("/opt/2048-event/赛事中台/data/")
+        )
+        forbidden_prefixes = (
+            "ONEBOT_",
+            "NAPCAT_",
+            "DISCORD_",
+            "BOT_PLATFORM",
+        )
+        self.assertFalse(
+            any(
+                name.startswith(forbidden_prefixes)
+                for name in values
+            )
+        )
+        service = SERVICE_TEMPLATE_PATH.read_text(encoding="utf-8")
+        self.assertIn(
+            "EnvironmentFile=/etc/2048-event/official-qq-bot.env",
+            service,
+        )
 
 
 if __name__ == "__main__":

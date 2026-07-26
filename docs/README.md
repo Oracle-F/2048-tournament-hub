@@ -141,6 +141,20 @@ Fedora systemd 的未启用模板见
 `--preflight`，核验 SDK、本地读写权限、快照/榜图哈希和当日持久投递状态，
 只有通过才执行真实 `--start`。其中路径和服务账号都是占位符，当前没有
 安装、enable 或 start。
+与 unit 一一对应的无密钥环境模板是
+`deploy/systemd/official-qq-bot.env.example`；它不包含 OneBot、NapCat 或
+Discord 配置，并默认关闭运行和定时发送。部署主机创建 `eventbot` 账号后，
+可先安装安全副本，再只在 `/etc` 中填写凭据和 OpenID：
+
+```bash
+sudo install -d -o root -g eventbot -m 0750 /etc/2048-event
+sudo install -o root -g eventbot -m 0640 \
+  deploy/systemd/official-qq-bot.env.example \
+  /etc/2048-event/official-qq-bot.env
+```
+
+仓库内模板不得填写真实值；安装副本仍保持 `OFFICIAL_QQ_BOT_ENABLED=false`
+和 `OFFICIAL_QQ_STARS_CUP_SCHEDULE_ENABLED=false`，直到相应 canary 阶段。
 
 ## 上线与回滚门
 

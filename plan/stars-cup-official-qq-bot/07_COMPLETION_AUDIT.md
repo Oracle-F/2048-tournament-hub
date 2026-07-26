@@ -26,6 +26,7 @@ still unproven because no authorized login, send or platform inspection occurred
 | Unexpected preflight failures are redacted | entrypoint test | error type only, no exception text/path/traceback | Confirmed offline |
 | systemd template parses | Fedora `systemd-analyze verify` | only expected missing placeholder executable warnings | Confirmed as template |
 | Local storage is ready before gateway start | permission fixtures and actual preflight | DB file/parent, inputs, cache/state and export checks; no probe writes or path output | Confirmed locally |
+| systemd environment handoff is safe | entrypoint/template test | official-only variables, blank secrets, sandbox on, runtime/schedule off | Confirmed as template |
 | Real QQ permissions exist | no platform access/authorization | no external evidence | UNKNOWN |
 | Target bot is in group and accepts active messages | relationship callbacks/state exist, but no authorized runtime event was observed | offline code cannot prove current platform state | UNKNOWN |
 | Real platform accepts both images | no authorized send | fake receipts only | UNKNOWN |
@@ -34,7 +35,7 @@ still unproven because no authorized login, send or platform inspection occurred
 
 - Recorded historical baseline: 12 basic tests, Bot 47/47 and fast suite `TOTAL PASS`.
 - Latest implementation validation: the same basic command now runs 15/15,
-  full unittest runs 218/218, plus `pip check`, Bot 47/47, fast `TOTAL PASS`
+  full unittest runs 219/219, plus `pip check`, Bot 47/47, fast `TOTAL PASS`
   and actual installed-SDK offline preflight with current snapshot/images.
 - Tests use local fakes and `data/testing.db`; they do not prove platform review,
   permission, group membership, audit acceptance, production networking or rate tier.
@@ -59,6 +60,8 @@ still unproven because no authorized login, send or platform inspection occurred
    instead of allowing a traceback to reach the operator terminal or journal.
 9. Preflight now rejects unreadable/unwritable local runtime storage before
    login; the current Fedora checkout passes every database and daily-job item.
+10. A dedicated systemd environment example matches the unit path and keeps
+    credentials blank plus gateway/scheduler flags disabled by default.
 
 ## Safety conclusion
 
