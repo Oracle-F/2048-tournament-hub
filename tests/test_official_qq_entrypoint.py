@@ -55,10 +55,14 @@ class OfficialQQEntrypointTests(TestCase):
             ), patch.object(
                 entrypoint,
                 "run_official_qq_bot",
-            ) as run, patch("sys.stdout", output):
+            ) as run, patch.object(
+                entrypoint,
+                "_configure_runtime_logging",
+            ) as configure_logging, patch("sys.stdout", output):
                 result = runtime_main([])
         self.assertEqual(result, 0)
         run.assert_not_called()
+        configure_logging.assert_not_called()
         rendered = output.getvalue()
         self.assertIn('"network_started": false', rendered)
         self.assertNotIn("private-app-id", rendered)
@@ -75,13 +79,55 @@ class OfficialQQEntrypointTests(TestCase):
             ), patch.object(
                 entrypoint,
                 "run_official_qq_bot",
-            ) as run:
+            ) as run, patch.object(
+                entrypoint,
+                "_configure_runtime_logging",
+            ) as configure_logging:
                 result = runtime_main(["--start"])
         self.assertEqual(result, 0)
+        configure_logging.assert_called_once_with()
         run.assert_called_once()
         config = run.call_args.args[0]
         self.assertEqual(config.app_id, "private-app-id")
         self.assertEqual(config.app_secret, "private-app-secret")
+
+    def test_start_logging_defaults_to_info_and_forces_owned_handler(self):
+        with patch.object(
+            entrypoint.logging,
+            "basicConfig",
+        ) as basic_config:
+            entrypoint._configure_runtime_logging({})
+
+        basic_config.assert_called_once_with(
+            level=entrypoint.logging.INFO,
+            format=(
+                "%(asctime)s %(levelname)s %(name)s | %(message)s"
+            ),
+            force=True,
+        )
+
+    def test_invalid_start_log_level_blocks_before_runtime(self):
+        with TemporaryDirectory() as temp_dir:
+            database = Path(temp_dir) / "bot.sqlite3"
+            database.touch()
+            error = io.StringIO()
+            with patch.dict(
+                "os.environ",
+                {
+                    **self._environment(database),
+                    "OFFICIAL_QQ_LOG_LEVEL": "DEBUG",
+                },
+                clear=True,
+            ), patch.object(
+                entrypoint,
+                "run_official_qq_bot",
+            ) as run, patch("sys.stderr", error):
+                result = runtime_main(["--start"])
+
+        self.assertEqual(result, 2)
+        run.assert_not_called()
+        self.assertIn('"code": "invalid_log_level"', error.getvalue())
+        self.assertIn('"network_started": false', error.getvalue())
 
     def test_disabled_start_exits_before_runtime_call(self):
         error = io.StringIO()
@@ -113,12 +159,16 @@ class OfficialQQEntrypointTests(TestCase):
             ) as preflight, patch.object(
                 entrypoint,
                 "run_official_qq_bot",
-            ) as run, patch("sys.stdout", output):
+            ) as run, patch.object(
+                entrypoint,
+                "_configure_runtime_logging",
+            ) as configure_logging, patch("sys.stdout", output):
                 result = runtime_main(["--preflight"])
 
         self.assertEqual(result, 0)
         preflight.assert_called_once()
         run.assert_not_called()
+        configure_logging.assert_not_called()
         self.assertIn('"status": "preflight_passed"', output.getvalue())
 
     def test_preflight_redacts_unexpected_exception(self):
@@ -217,6 +267,7 @@ class OfficialQQEntrypointTests(TestCase):
             values["OFFICIAL_QQ_STARS_CUP_SCHEDULE_ENABLED"],
             "false",
         )
+        self.assertEqual(values["OFFICIAL_QQ_LOG_LEVEL"], "INFO")
         self.assertEqual(
             values["OFFICIAL_QQ_DATABASE_PATH"],
             "/opt/2048-event/赛事中台/data/tournament_hub.sqlite3",

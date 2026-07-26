@@ -126,6 +126,7 @@ Intent 和 API facade。若群星杯定时开关已打开，还会重新验证 l
 
 需要每日自动发送时，还需显式配置：
 
+- `OFFICIAL_QQ_LOG_LEVEL=INFO`（仅允许 `INFO/WARNING/ERROR/CRITICAL`）
 - `OFFICIAL_QQ_STARS_CUP_SCHEDULE_ENABLED=true`
 - `OFFICIAL_QQ_STARS_CUP_GROUP_OPENID=<获准测试群或正式群 OpenID>`
 - `OFFICIAL_QQ_STARS_CUP_SEND_TIME=HH:MM`（新加坡时区）
@@ -136,6 +137,9 @@ Intent 和 API facade。若群星杯定时开关已打开，还会重新验证 l
 关系拒收和未知回执等状态同日不盲重试。
 若调度主协程因运行时回归意外退出，官方运行时只记录去敏的异常类型，并按
 同一重试间隔重启调度协程；服务关闭时仍直接取消，不进入重启循环。
+日志 handler 只在显式 `--start` 前安装，默认 INFO，便于 journal 记录网关
+ready、调度结果和去敏故障类型；离线 check/preflight 不改变日志配置。为避免
+SDK 请求细节进入日志，官方入口拒绝 DEBUG 和未知级别。
 Fedora systemd 的未启用模板见
 `deploy/systemd/official-qq-bot.service.example`。模板会先运行离线
 `--preflight`，核验 SDK、本地读写权限、快照/榜图哈希和当日持久投递状态，

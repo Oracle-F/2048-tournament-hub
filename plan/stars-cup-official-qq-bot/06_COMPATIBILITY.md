@@ -61,6 +61,7 @@ First-party sources:
 - Preflight reports current-day durable delivery reconciliation and rejects invalid state without exposing the target or filesystem paths.
 - The uninstalled systemd example gates `--start` behind the same offline preflight.
 - Its dedicated environment example contains no credentials or unrelated transports and defaults both runtime and scheduling to disabled.
+- Runtime logging is installed only for `--start`, defaults to INFO and rejects DEBUG; offline JSON modes remain untouched.
 - The runtime supervises unexpected scheduler exit with redacted outcome logging and configured retry delay; explicit cancellation still stops immediately.
 - Local inbound files are bounded and atomically published.
 - OneBot entrypoint/lifecycle remains independent and runnable.

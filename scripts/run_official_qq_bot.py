@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
+import os
 import sys
 from pathlib import Path
 
@@ -25,6 +27,30 @@ from bot_official_qq.runtime import (  # noqa: E402
     preflight_official_qq_bot,
     run_official_qq_bot,
 )
+
+
+def _configure_runtime_logging(environment=None) -> None:
+    values = os.environ if environment is None else environment
+    level_name = str(
+        values.get("OFFICIAL_QQ_LOG_LEVEL", "INFO")
+    ).strip().upper()
+    levels = {
+        "INFO": logging.INFO,
+        "WARNING": logging.WARNING,
+        "ERROR": logging.ERROR,
+        "CRITICAL": logging.CRITICAL,
+    }
+    level = levels.get(level_name)
+    if level is None:
+        raise OfficialRuntimeConfigError(
+            "OFFICIAL_QQ_LOG_LEVEL 只允许 INFO/WARNING/ERROR/CRITICAL",
+            code="invalid_log_level",
+        )
+    logging.basicConfig(
+        level=level,
+        format="%(asctime)s %(levelname)s %(name)s | %(message)s",
+        force=True,
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -118,6 +144,35 @@ def main(argv: list[str] | None = None) -> int:
             )
         )
         return 0
+    try:
+        _configure_runtime_logging()
+    except OfficialRuntimeConfigError as exc:
+        print(
+            json.dumps(
+                {
+                    "status": "blocked",
+                    "code": exc.code,
+                    "error": str(exc),
+                    "network_started": False,
+                },
+                ensure_ascii=False,
+            ),
+            file=sys.stderr,
+        )
+        return 2
+    except Exception as exc:
+        print(
+            json.dumps(
+                {
+                    "status": "failed",
+                    "error_type": type(exc).__name__,
+                    "network_started": False,
+                },
+                ensure_ascii=False,
+            ),
+            file=sys.stderr,
+        )
+        return 1
     try:
         run_official_qq_bot(config)
     except OfficialRuntimeConfigError as exc:

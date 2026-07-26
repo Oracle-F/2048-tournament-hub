@@ -27,6 +27,7 @@ still unproven because no authorized login, send or platform inspection occurred
 | systemd template parses | Fedora `systemd-analyze verify` | only expected missing placeholder executable warnings | Confirmed as template |
 | Local storage is ready before gateway start | permission fixtures and actual preflight | DB file/parent, inputs, cache/state and export checks; no probe writes or path output | Confirmed locally |
 | systemd environment handoff is safe | entrypoint/template test | official-only variables, blank secrets, sandbox on, runtime/schedule off | Confirmed as template |
+| Runtime evidence is journal-visible by default | entrypoint logging tests | start-only forced INFO handler; DEBUG/invalid values blocked before network | Confirmed offline |
 | Real QQ permissions exist | no platform access/authorization | no external evidence | UNKNOWN |
 | Target bot is in group and accepts active messages | relationship callbacks/state exist, but no authorized runtime event was observed | offline code cannot prove current platform state | UNKNOWN |
 | Real platform accepts both images | no authorized send | fake receipts only | UNKNOWN |
@@ -35,7 +36,7 @@ still unproven because no authorized login, send or platform inspection occurred
 
 - Recorded historical baseline: 12 basic tests, Bot 47/47 and fast suite `TOTAL PASS`.
 - Latest implementation validation: the same basic command now runs 15/15,
-  full unittest runs 219/219, plus `pip check`, Bot 47/47, fast `TOTAL PASS`
+  full unittest runs 221/221, plus `pip check`, Bot 47/47, fast `TOTAL PASS`
   and actual installed-SDK offline preflight with current snapshot/images.
 - Tests use local fakes and `data/testing.db`; they do not prove platform review,
   permission, group membership, audit acceptance, production networking or rate tier.
@@ -62,6 +63,8 @@ still unproven because no authorized login, send or platform inspection occurred
    login; the current Fedora checkout passes every database and daily-job item.
 10. A dedicated systemd environment example matches the unit path and keeps
     credentials blank plus gateway/scheduler flags disabled by default.
+11. Real start installs a deterministic INFO+ stderr handler for systemd
+    capture; offline modes remain clean and DEBUG is rejected before network.
 
 ## Safety conclusion
 
