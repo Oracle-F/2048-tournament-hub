@@ -174,7 +174,7 @@ class StarsCupReplyTests(TestCase):
         )
 
         self.assertIn("群星杯队伍榜", overview)
-        self.assertIn("1. F凌云", overview)
+        self.assertIn("1. F队 凌云", overview)
         self.assertIn("A队 星河", team)
         self.assertIn("第4名", team)
         self.assertIn("队内前3", team)
@@ -237,6 +237,43 @@ class StarsCupReplyTests(TestCase):
 
         self.assertIn("v_01｜A队", reply)
         self.assertNotIn("还没有绑定", reply)
+
+    def test_roster_team_names_that_already_include_code_do_not_duplicate_it(self):
+        loaded = _loaded_snapshot()
+        for team in loaded.snapshot["teams"]:
+            team["name"] = "{}队".format(team["code"])
+        loaded.snapshot["event"]["as_of"] = "2026-07-27T05:14:30.767856+08:00"
+
+        overview = build_stars_cup_query_reply(
+            loaded,
+            StarsCupQuery("overview"),
+        )
+        team = build_stars_cup_query_reply(
+            loaded,
+            StarsCupQuery("team", "A"),
+        )
+
+        self.assertIn("1. F队 ", overview)
+        self.assertNotIn("FF队", overview)
+        self.assertIn("A队｜", team)
+        self.assertNotIn("A队 A队", team)
+        self.assertIn("截至 2026-07-27 05:14", overview)
+
+    def test_team_leaders_exclude_players_without_a_counted_score(self):
+        loaded = _loaded_snapshot()
+        team = loaded.snapshot["teams"][0]
+        for player in team["players"][2:]:
+            player["total_board_sum"] = None
+
+        reply = build_stars_cup_query_reply(
+            loaded,
+            StarsCupQuery("team", "A"),
+        )
+
+        leaders = reply.splitlines()[1]
+        self.assertIn(team["players"][0]["verse"], leaders)
+        self.assertIn(team["players"][1]["verse"], leaders)
+        self.assertNotIn("—", leaders)
 
 
 if __name__ == "__main__":

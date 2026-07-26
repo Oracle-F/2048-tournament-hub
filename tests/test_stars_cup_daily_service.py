@@ -110,6 +110,8 @@ class StarsCupDailyExportTests(TestCase):
             pointer = json.loads(latest.read_text(encoding="utf-8"))
             state = json.loads(result.state_path.read_text(encoding="utf-8"))
             canonical_cache = json.loads(cache.read_text(encoding="utf-8"))
+            published_cache_path = result.query_summary["cache"]
+            work_dir = state_root / "work" / "20260727_180000"
 
         self.assertEqual(result.run_id, "20260727")
         self.assertFalse(result.reused)
@@ -117,6 +119,8 @@ class StarsCupDailyExportTests(TestCase):
         self.assertEqual(pointer["images"]["total"]["sha256"], result.image_sha256["total"])
         self.assertEqual(state["status"], "published")
         self.assertEqual(canonical_cache["schema_version"], 2)
+        self.assertEqual(published_cache_path, str(cache.resolve()))
+        self.assertFalse(work_dir.exists())
         self.assertEqual(result.output_dir.name, "20260727_180000")
         query.assert_called_once()
         export.assert_called_once()
@@ -194,6 +198,48 @@ class StarsCupDailyExportTests(TestCase):
         self.assertTrue(second.reused)
         self.assertEqual(second.output_dir, first.output_dir)
         self.assertEqual(second.snapshot_sha256, first.snapshot_sha256)
+
+    def test_reuse_repairs_old_staged_cache_summary_and_cleans_known_work_file(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            kwargs = {
+                "run_time": RUN_TIME,
+                "roster_path": root / "roster.json",
+                "live_cache_path": root / "cache.json",
+                "background_path": root / "background.png",
+                "export_root": root / "exports",
+                "state_root": root / "state",
+                "latest_pointer_path": root / "latest.json",
+            }
+            with patch(
+                "services.stars_cup_daily_service.query_live_scores",
+                side_effect=_query_into_staged_cache,
+            ), patch(
+                "services.stars_cup_daily_service.export_rank_images",
+                side_effect=lambda _roster, _db, output, _background, _as_of, **_kwargs: _write_valid_export(output),
+            ):
+                first = run_stars_cup_daily_export(**kwargs)
+            state = json.loads(first.state_path.read_text(encoding="utf-8"))
+            old_work = root / "state" / "work" / first.output_dir.name
+            old_work.mkdir(parents=True)
+            old_staged = old_work / "live_cache.json"
+            old_staged.write_text("{}", encoding="utf-8")
+            state["query_summary"]["cache"] = str(old_staged)
+            first.state_path.write_text(json.dumps(state), encoding="utf-8")
+
+            reused = run_stars_cup_daily_export(
+                **{**kwargs, "run_time": RUN_TIME.replace(hour=23)}
+            )
+            repaired = json.loads(
+                reused.state_path.read_text(encoding="utf-8")
+            )
+
+        self.assertTrue(reused.reused)
+        self.assertEqual(
+            repaired["query_summary"]["cache"],
+            str(kwargs["live_cache_path"].resolve()),
+        )
+        self.assertFalse(old_work.exists())
 
     def test_existing_lock_rejects_concurrent_run_without_mutation(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -132,6 +132,31 @@ def _atomic_copy(source: Path, destination: Path) -> None:
             temporary.unlink()
 
 
+def _published_query_summary(
+    query_summary: Any,
+    *,
+    live_cache_path: Path,
+) -> dict[str, Any]:
+    summary = dict(query_summary) if isinstance(query_summary, dict) else {}
+    summary["cache"] = str(live_cache_path.expanduser().resolve())
+    return summary
+
+
+def _cleanup_staged_work(work_dir: Path, staged_cache_path: Path) -> None:
+    failure_report = staged_cache_path.with_name(
+        staged_cache_path.stem + "_last_failure.json"
+    )
+    for path in (staged_cache_path, failure_report):
+        try:
+            path.unlink(missing_ok=True)
+        except OSError:
+            pass
+    try:
+        work_dir.rmdir()
+    except OSError:
+        pass
+
+
 @contextmanager
 def _exclusive_lock(path: Path, *, run_id: str):
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -311,6 +336,12 @@ def run_stars_cup_daily_export(
             except StarsCupSnapshotUnavailable:
                 pass
             else:
+                query_summary = _published_query_summary(
+                    existing.get("query_summary"),
+                    live_cache_path=live_cache_path,
+                )
+                existing["query_summary"] = query_summary
+                _atomic_write_json(state_path, existing)
                 pointer = _pointer_payload(
                     run_id=loaded.run_id,
                     published_at=loaded.published_at,
@@ -321,13 +352,19 @@ def run_stars_cup_daily_export(
                     export_root=export_root,
                 )
                 _atomic_write_json(latest_pointer_path, pointer)
+                existing_output_dir = Path(
+                    str(existing.get("output_dir") or loaded.snapshot_path.parent)
+                )
+                existing_work_dir = work_root / existing_output_dir.name
+                _cleanup_staged_work(
+                    existing_work_dir,
+                    existing_work_dir / "live_cache.json",
+                )
                 return _result_from_loaded(
                     loaded,
                     state_path=state_path,
                     latest_pointer_path=latest_pointer_path,
-                    query_summary=existing.get("query_summary")
-                    if isinstance(existing.get("query_summary"), dict)
-                    else {},
+                    query_summary=query_summary,
                     reused=True,
                 )
 
@@ -350,6 +387,10 @@ def run_stars_cup_daily_export(
                 cache_path=staged_cache_path,
                 workers=workers,
                 full=full,
+            )
+            query_summary = _published_query_summary(
+                query_summary,
+                live_cache_path=live_cache_path,
             )
             _atomic_write_json(
                 state_path,
@@ -409,6 +450,7 @@ def run_stars_cup_daily_export(
             }
             _atomic_write_json(state_path, published_state)
             _atomic_write_json(latest_pointer_path, pointer)
+            _cleanup_staged_work(work_dir, staged_cache_path)
             return DailyRunResult(
                 run_id=run_id,
                 published_at=published_at,

@@ -213,7 +213,17 @@ def _format_integer(value: Any) -> str:
 
 def _snapshot_as_of(snapshot: dict[str, Any]) -> str:
     event = snapshot.get("event") if isinstance(snapshot.get("event"), dict) else {}
-    return str(event.get("as_of") or snapshot.get("as_of") or "未知").strip()
+    value = str(event.get("as_of") or snapshot.get("as_of") or "未知").strip()
+    if "T" in value:
+        try:
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            pass
+        else:
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=LOCAL_TIMEZONE)
+            return parsed.astimezone(LOCAL_TIMEZONE).strftime("%Y-%m-%d %H:%M")
+    return value
 
 
 def _freshness_suffix(loaded: LoadedStarsCupSnapshot) -> str:
@@ -235,6 +245,15 @@ def _all_players(snapshot: dict[str, Any]) -> list[tuple[dict[str, Any], dict[st
         if isinstance(player, dict):
             results.append((player, None))
     return results
+
+
+def _team_label(team: dict[str, Any]) -> str:
+    code = str(team.get("code") or "?").strip()
+    base = "{}队".format(code)
+    name = str(team.get("name") or "").strip()
+    if not name or name.casefold() in {code.casefold(), base.casefold()}:
+        return base
+    return "{} {}".format(base, name)
 
 
 def _find_player(snapshot: dict[str, Any], selector: str):
@@ -267,10 +286,9 @@ def _overview_reply(loaded: LoadedStarsCupSnapshot) -> str:
     for team in teams:
         rank = team.get("rank")
         lines.append(
-            "{}. {}{} {}".format(
+            "{}. {} {}".format(
                 "—" if rank is None else rank,
-                str(team.get("code") or "?"),
-                str(team.get("name") or ""),
+                _team_label(team),
                 _format_integer(team.get("total_board_sum")),
             )
         )
@@ -291,7 +309,12 @@ def _team_reply(loaded: LoadedStarsCupSnapshot, selector: str) -> str:
         return "未找到 {} 队。".format(selector)
     completion = team.get("completion") if isinstance(team.get("completion"), dict) else {}
     players = sorted(
-        (player for player in team.get("players") or [] if isinstance(player, dict)),
+        (
+            player
+            for player in team.get("players") or []
+            if isinstance(player, dict)
+            and player.get("total_board_sum") is not None
+        ),
         key=lambda player: (
             -(int(player.get("total_board_sum") or -1)),
             str(player.get("verse") or "").casefold(),
@@ -306,11 +329,10 @@ def _team_reply(loaded: LoadedStarsCupSnapshot, selector: str) -> str:
     )
     rank = team.get("rank")
     return (
-        "{}队 {}｜{}｜盘面和 {}｜完成 {}/{}\n"
+        "{}｜{}｜盘面和 {}｜完成 {}/{}\n"
         "队内前3：{}\n{}"
     ).format(
-        selector,
-        str(team.get("name") or ""),
+        _team_label(team),
         "未排名" if rank is None else "第{}名".format(rank),
         _format_integer(team.get("total_board_sum")),
         completion.get("completed", 0),
