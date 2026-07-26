@@ -19,6 +19,13 @@ from typing import Any, Mapping
 
 from bot_official_qq.app import OfficialEventOutcome, process_official_event
 from bot_official_qq.media_upload import ChunkedOfficialQQMediaUploader
+from bot_official_qq.relationship_state import (
+    DEFAULT_OFFICIAL_TARGET_STATE_PATH,
+    OfficialRelationshipStateError,
+    load_official_target_state,
+    observe_official_relationship_event,
+    official_relationship_event_to_update,
+)
 from bot_official_qq.scheduler import OfficialStarsCupDailyScheduler
 from bot_official_qq.sdk_facade import Botpy2026ApiFacade
 from bot_official_qq.transport import OfficialEventDeduplicator, OfficialQQTransport
@@ -119,6 +126,9 @@ class OfficialRuntimeConfig:
     stars_cup_send_time: time = time(hour=9)
     stars_cup_poll_seconds: int = 30
     stars_cup_retry_seconds: int = 900
+    stars_cup_relationship_state_path: Path = (
+        DEFAULT_OFFICIAL_TARGET_STATE_PATH
+    )
 
     def __repr__(self) -> str:
         return (
@@ -209,6 +219,17 @@ class OfficialRuntimeConfig:
                 "启用群星杯定时发送时缺少 OFFICIAL_QQ_STARS_CUP_GROUP_OPENID",
                 code="schedule_group_missing",
             )
+        raw_relationship_state_path = str(
+            values.get(
+                "OFFICIAL_QQ_STARS_CUP_RELATIONSHIP_STATE_PATH",
+                "",
+            )
+        ).strip()
+        relationship_state_path = (
+            Path(raw_relationship_state_path).expanduser()
+            if raw_relationship_state_path
+            else DEFAULT_OFFICIAL_TARGET_STATE_PATH
+        ).resolve()
         return cls(
             enabled=True,
             app_id=app_id,
@@ -238,6 +259,7 @@ class OfficialRuntimeConfig:
                 "OFFICIAL_QQ_STARS_CUP_RETRY_SECONDS",
                 default=900,
             ),
+            stars_cup_relationship_state_path=relationship_state_path,
         )
 
     def safe_summary(self) -> dict[str, Any]:
@@ -263,6 +285,12 @@ class OfficialRuntimeConfig:
             "intent_events": [
                 "C2C_MESSAGE_CREATE",
                 "GROUP_AT_MESSAGE_CREATE",
+                "GROUP_ADD_ROBOT",
+                "GROUP_DEL_ROBOT",
+                "GROUP_MSG_REJECT",
+                "GROUP_MSG_RECEIVE",
+                "C2C_MSG_REJECT",
+                "C2C_MSG_RECEIVE",
             ],
         }
 
@@ -277,11 +305,15 @@ class OfficialQQEventRunner:
         deduplicator: OfficialEventDeduplicator | None = None,
         transport_factory=None,
         connection_factory=connect,
+        target_group_openid: str = "",
+        relationship_state_path: Path = DEFAULT_OFFICIAL_TARGET_STATE_PATH,
     ):
         self.database_path = Path(database_path)
         self.deduplicator = deduplicator or OfficialEventDeduplicator()
         self.transport_factory = transport_factory or self._default_transport
         self.connection_factory = connection_factory
+        self.target_group_openid = str(target_group_openid or "").strip()
+        self.relationship_state_path = Path(relationship_state_path)
         self._api: Any = None
         self._transport: OfficialQQTransport | None = None
 
@@ -326,6 +358,38 @@ class OfficialQQEventRunner:
         )
         return outcome
 
+    async def handle_relationship(
+        self,
+        *,
+        event_type: str,
+        event: Any,
+    ) -> dict[str, Any] | None:
+        update = official_relationship_event_to_update(event_type, event)
+        if update is None:
+            return None
+        state = None
+        if self.target_group_openid:
+            state = observe_official_relationship_event(
+                update,
+                self.target_group_openid,
+                self.relationship_state_path,
+            )
+        observation = {
+            "event_type": update.event_type,
+            "subject_kind": update.subject_kind,
+            "target_match": state is not None,
+            "status": state.status if state is not None else update.status,
+        }
+        LOGGER.info(
+            "official QQ relationship event type=%s subject=%s "
+            "target_match=%s status=%s",
+            observation["event_type"],
+            observation["subject_kind"],
+            observation["target_match"],
+            observation["status"],
+        )
+        return observation
+
 
 def _load_botpy() -> ModuleType:
     try:
@@ -360,7 +424,11 @@ def create_botpy_client(
             "qq-botpy public_messages intent 与官方 1<<25 不一致",
             code="intent_mismatch",
         )
-    event_runner = runner or OfficialQQEventRunner(config.database_path)
+    event_runner = runner or OfficialQQEventRunner(
+        config.database_path,
+        target_group_openid=config.stars_cup_group_openid,
+        relationship_state_path=config.stars_cup_relationship_state_path,
+    )
     daily_scheduler = scheduler
     if daily_scheduler is None and config.stars_cup_schedule_enabled:
         daily_scheduler = OfficialStarsCupDailyScheduler(
@@ -404,6 +472,42 @@ def create_botpy_client(
                 api=self.api,
             )
 
+        async def on_group_add_robot(self, event):
+            await event_runner.handle_relationship(
+                event_type="GROUP_ADD_ROBOT",
+                event=event,
+            )
+
+        async def on_group_del_robot(self, event):
+            await event_runner.handle_relationship(
+                event_type="GROUP_DEL_ROBOT",
+                event=event,
+            )
+
+        async def on_group_msg_reject(self, event):
+            await event_runner.handle_relationship(
+                event_type="GROUP_MSG_REJECT",
+                event=event,
+            )
+
+        async def on_group_msg_receive(self, event):
+            await event_runner.handle_relationship(
+                event_type="GROUP_MSG_RECEIVE",
+                event=event,
+            )
+
+        async def on_c2c_msg_reject(self, event):
+            await event_runner.handle_relationship(
+                event_type="C2C_MSG_REJECT",
+                event=event,
+            )
+
+        async def on_c2c_msg_receive(self, event):
+            await event_runner.handle_relationship(
+                event_type="C2C_MSG_RECEIVE",
+                event=event,
+            )
+
         async def on_error(self, event_method, *_args, **_kwargs):
             LOGGER.exception(
                 "official QQ callback failed event=%s",
@@ -436,6 +540,72 @@ def _botpy_version(botpy: Any) -> str:
         return importlib.metadata.version("qq-botpy")
     except importlib.metadata.PackageNotFoundError:
         return "unknown"
+
+
+def build_platform_readiness_summary(
+    config: OfficialRuntimeConfig,
+) -> dict[str, Any]:
+    state = None
+    if config.stars_cup_group_openid:
+        try:
+            state = load_official_target_state(
+                config.stars_cup_relationship_state_path,
+                config.stars_cup_group_openid,
+            )
+        except OfficialRelationshipStateError as exc:
+            raise OfficialRuntimeConfigError(
+                "官方 QQ 目标关系状态无效",
+                code="relationship_state_invalid",
+            ) from exc
+    relationship_status = "UNKNOWN"
+    relationship_state = "unknown"
+    proactive_status = "UNKNOWN"
+    if state is not None:
+        relationship_state = state.status
+        if state.status in {"joined", "receivable"}:
+            relationship_status = "CONFIRMED"
+        elif state.status in {"rejected", "removed"}:
+            relationship_status = "DENIED"
+        if state.status == "receivable":
+            proactive_status = "CONFIRMED"
+        elif state.status in {"rejected", "removed"}:
+            proactive_status = "DENIED"
+    return {
+        "application_review": {
+            "status": "UNKNOWN",
+            "evidence": "external_platform_required",
+        },
+        "intent_permission": {
+            "status": "UNKNOWN",
+            "declared_intent": GROUP_AND_C2C_INTENT,
+            "evidence": "local_declaration_only",
+        },
+        "target_relationship": {
+            "status": relationship_status,
+            "observed_state": relationship_state,
+            "evidence": (
+                "local_relationship_event"
+                if state is not None and state.status != "unknown"
+                else "no_observed_relationship_event"
+            ),
+        },
+        "proactive_messages": {
+            "status": proactive_status,
+            "evidence": (
+                "local_relationship_event"
+                if proactive_status != "UNKNOWN"
+                else "external_platform_required"
+            ),
+        },
+        "rich_media": {
+            "status": "UNKNOWN",
+            "evidence": "real_upload_required",
+        },
+        "real_receipt": {
+            "status": "UNKNOWN",
+            "evidence": "authorized_canary_required",
+        },
+    }
 
 
 def preflight_official_qq_bot(
@@ -490,6 +660,9 @@ def preflight_official_qq_bot(
             "stars_cup_snapshot": {
                 "checked": False,
             },
+            "platform_readiness": build_platform_readiness_summary(
+                config
+            ),
         }
         if config.stars_cup_schedule_enabled:
             try:

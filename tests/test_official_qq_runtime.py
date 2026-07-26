@@ -15,6 +15,10 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from bot_official_qq.app import OfficialEventOutcome  # noqa: E402
+from bot_official_qq.relationship_state import (  # noqa: E402
+    observe_official_relationship_event,
+    official_relationship_event_to_update,
+)
 from bot_official_qq.runtime import (  # noqa: E402
     GROUP_AND_C2C_INTENT,
     OfficialQQEventRunner,
@@ -203,6 +207,49 @@ class OfficialRuntimeClientTests(IsolatedAsyncioTestCase):
         self.assertIs(runner.handle.await_args_list[0].kwargs["event"], c2c)
         self.assertIs(runner.handle.await_args_list[1].kwargs["event"], group)
 
+    async def test_client_routes_six_relationship_callbacks_separately(self):
+        with TemporaryDirectory() as temp_dir:
+            database = Path(temp_dir) / "bot.sqlite3"
+            database.touch()
+            runner = SimpleNamespace(
+                handle=AsyncMock(),
+                handle_relationship=AsyncMock(),
+            )
+            client = create_botpy_client(
+                _config(database),
+                botpy_module=FAKE_BOTPY,
+                runner=runner,
+            )
+            callbacks = (
+                ("on_group_add_robot", "GROUP_ADD_ROBOT"),
+                ("on_group_del_robot", "GROUP_DEL_ROBOT"),
+                ("on_group_msg_reject", "GROUP_MSG_REJECT"),
+                ("on_group_msg_receive", "GROUP_MSG_RECEIVE"),
+                ("on_c2c_msg_reject", "C2C_MSG_REJECT"),
+                ("on_c2c_msg_receive", "C2C_MSG_RECEIVE"),
+            )
+            events = []
+            for callback_name, _event_type in callbacks:
+                event = object()
+                events.append(event)
+                await getattr(client, callback_name)(event)
+
+        self.assertEqual(
+            [
+                call.kwargs["event_type"]
+                for call in runner.handle_relationship.await_args_list
+            ],
+            [event_type for _callback, event_type in callbacks],
+        )
+        self.assertEqual(
+            [
+                call.kwargs["event"]
+                for call in runner.handle_relationship.await_args_list
+            ],
+            events,
+        )
+        runner.handle.assert_not_awaited()
+
     async def test_ready_starts_one_guarded_scheduler_and_close_cancels_it(self):
         with TemporaryDirectory() as temp_dir:
             database = Path(temp_dir) / "bot.sqlite3"
@@ -286,6 +333,53 @@ class OfficialRuntimeClientTests(IsolatedAsyncioTestCase):
                 )
         connection.close.assert_called_once_with()
 
+    async def test_relationship_runner_redacts_target_and_never_opens_database(self):
+        target = "opaque-private-target-group"
+        connection_factory = Mock()
+        with TemporaryDirectory() as temp_dir:
+            state_path = Path(temp_dir) / "relationship.json"
+            runner = OfficialQQEventRunner(
+                Path("/unused.sqlite3"),
+                connection_factory=connection_factory,
+                target_group_openid=target,
+                relationship_state_path=state_path,
+            )
+            with self.assertLogs(
+                "bot_official_qq.runtime",
+                level="INFO",
+            ) as captured:
+                observation = await runner.handle_relationship(
+                    event_type="GROUP_MSG_REJECT",
+                    event=SimpleNamespace(group_openid=target),
+                )
+            rendered = state_path.read_text(encoding="utf-8")
+
+        connection_factory.assert_not_called()
+        self.assertTrue(observation["target_match"])
+        self.assertEqual(observation["status"], "rejected")
+        self.assertNotIn(target, rendered)
+        self.assertNotIn(target, "\n".join(captured.output))
+
+    async def test_non_target_c2c_relationship_does_not_write_state(self):
+        connection_factory = Mock()
+        with TemporaryDirectory() as temp_dir:
+            state_path = Path(temp_dir) / "relationship.json"
+            runner = OfficialQQEventRunner(
+                Path("/unused.sqlite3"),
+                connection_factory=connection_factory,
+                target_group_openid="configured-group",
+                relationship_state_path=state_path,
+            )
+            observation = await runner.handle_relationship(
+                event_type="C2C_MSG_REJECT",
+                event=SimpleNamespace(openid="opaque-user"),
+            )
+            self.assertFalse(state_path.exists())
+
+        connection_factory.assert_not_called()
+        self.assertFalse(observation["target_match"])
+        self.assertEqual(observation["subject_kind"], "c2c")
+
     def test_run_owns_python_314_compatible_loop_and_passes_credentials(self):
         with TemporaryDirectory() as temp_dir:
             database = Path(temp_dir) / "bot.sqlite3"
@@ -327,6 +421,13 @@ class OfficialRuntimePreflightTests(TestCase):
         self.assertTrue(summary["sdk"]["api_facade_compatible"])
         self.assertEqual(summary["sdk"]["intent"], 1 << 25)
         self.assertFalse(summary["stars_cup_snapshot"]["checked"])
+        readiness = summary["platform_readiness"]
+        self.assertEqual(readiness["application_review"]["status"], "UNKNOWN")
+        self.assertEqual(readiness["intent_permission"]["status"], "UNKNOWN")
+        self.assertEqual(readiness["target_relationship"]["status"], "UNKNOWN")
+        self.assertEqual(readiness["proactive_messages"]["status"], "UNKNOWN")
+        self.assertEqual(readiness["rich_media"]["status"], "UNKNOWN")
+        self.assertEqual(readiness["real_receipt"]["status"], "UNKNOWN")
 
     def test_schedule_preflight_checks_snapshot_without_exposing_paths(self):
         with TemporaryDirectory() as temp_dir:
@@ -359,6 +460,70 @@ class OfficialRuntimePreflightTests(TestCase):
         self.assertEqual(snapshot["run_id"], "20260727")
         self.assertNotIn("path", str(snapshot).lower())
         self.assertNotIn("opaque-private-group", str(summary))
+
+    def test_preflight_reports_observed_relationship_without_claiming_permissions(self):
+        target = "opaque-private-group"
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            database = root / "bot.sqlite3"
+            database.touch()
+            state_path = root / "relationship.json"
+            update = official_relationship_event_to_update(
+                "GROUP_MSG_RECEIVE",
+                SimpleNamespace(group_openid=target),
+                observed_at=datetime(
+                    2026,
+                    7,
+                    27,
+                    9,
+                    0,
+                    tzinfo=LOCAL_TIMEZONE,
+                ),
+            )
+            observe_official_relationship_event(
+                update,
+                target,
+                state_path,
+            )
+            loaded = SimpleNamespace(
+                run_id="20260727",
+                published_at=datetime(
+                    2026,
+                    7,
+                    27,
+                    9,
+                    0,
+                    tzinfo=LOCAL_TIMEZONE,
+                ),
+                stale=False,
+            )
+            summary = preflight_official_qq_bot(
+                _config(
+                    database,
+                    stars_cup_schedule_enabled=True,
+                    stars_cup_group_openid=target,
+                    stars_cup_relationship_state_path=state_path,
+                ),
+                botpy_module=FAKE_BOTPY,
+                snapshot_loader=Mock(return_value=loaded),
+            )
+
+        readiness = summary["platform_readiness"]
+        self.assertEqual(
+            readiness["target_relationship"]["status"],
+            "CONFIRMED",
+        )
+        self.assertEqual(
+            readiness["target_relationship"]["observed_state"],
+            "receivable",
+        )
+        self.assertEqual(
+            readiness["proactive_messages"]["status"],
+            "CONFIRMED",
+        )
+        self.assertEqual(readiness["intent_permission"]["status"], "UNKNOWN")
+        self.assertEqual(readiness["application_review"]["status"], "UNKNOWN")
+        self.assertNotIn(target, str(summary))
 
 
 if __name__ == "__main__":
