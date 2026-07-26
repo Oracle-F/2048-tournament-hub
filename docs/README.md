@@ -106,6 +106,9 @@
 安装 SDK 后可执行更强的离线 preflight；它会构造并关闭真实 Client、核对
 Intent 和 API facade。若群星杯定时开关已打开，还会重新验证 latest
 快照与两张榜图哈希，但仍不登录或联网。
+`local_storage` 会在不创建探针文件的前提下验证 SQLite 文件及父目录可写；
+启用定时发送时还会验证名单/背景可读，以及 Verse 缓存、关系状态、调度状态
+和榜图导出位置可写。检查结果只有布尔值，不输出本地路径。
 已分类的配置/产物错误保留稳定错误码；其他 preflight 异常只输出异常类型，
 不会把异常文本、内部路径或潜在敏感值写入终端/systemd journal。
 输出中的 `platform_readiness` 会把应用审核、Intent 实际授权、富媒体权限和
@@ -135,9 +138,9 @@ Intent 和 API facade。若群星杯定时开关已打开，还会重新验证 l
 同一重试间隔重启调度协程；服务关闭时仍直接取消，不进入重启循环。
 Fedora systemd 的未启用模板见
 `deploy/systemd/official-qq-bot.service.example`。模板会先运行离线
-`--preflight`，核验 SDK、快照/榜图哈希和当日持久投递状态，只有通过才执行
-真实 `--start`。其中路径和服务账号都是占位符，当前没有安装、enable 或
-start。
+`--preflight`，核验 SDK、本地读写权限、快照/榜图哈希和当日持久投递状态，
+只有通过才执行真实 `--start`。其中路径和服务账号都是占位符，当前没有
+安装、enable 或 start。
 
 ## 上线与回滚门
 

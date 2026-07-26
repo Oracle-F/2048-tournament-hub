@@ -25,6 +25,7 @@ still unproven because no authorized login, send or platform inspection occurred
 | Service startup rejects invalid daily state | preflight tests, systemd example | current-day reconciliation plus `ExecStartPre` before `--start` | Confirmed offline |
 | Unexpected preflight failures are redacted | entrypoint test | error type only, no exception text/path/traceback | Confirmed offline |
 | systemd template parses | Fedora `systemd-analyze verify` | only expected missing placeholder executable warnings | Confirmed as template |
+| Local storage is ready before gateway start | permission fixtures and actual preflight | DB file/parent, inputs, cache/state and export checks; no probe writes or path output | Confirmed locally |
 | Real QQ permissions exist | no platform access/authorization | no external evidence | UNKNOWN |
 | Target bot is in group and accepts active messages | relationship callbacks/state exist, but no authorized runtime event was observed | offline code cannot prove current platform state | UNKNOWN |
 | Real platform accepts both images | no authorized send | fake receipts only | UNKNOWN |
@@ -33,7 +34,7 @@ still unproven because no authorized login, send or platform inspection occurred
 
 - Recorded historical baseline: 12 basic tests, Bot 47/47 and fast suite `TOTAL PASS`.
 - Latest implementation validation: the same basic command now runs 15/15,
-  full unittest runs 214/214, plus `pip check`, Bot 47/47, fast `TOTAL PASS`
+  full unittest runs 218/218, plus `pip check`, Bot 47/47, fast `TOTAL PASS`
   and actual installed-SDK offline preflight with current snapshot/images.
 - Tests use local fakes and `data/testing.db`; they do not prove platform review,
   permission, group membership, audit acceptance, production networking or rate tier.
@@ -56,6 +57,8 @@ still unproven because no authorized login, send or platform inspection occurred
    cancellation remains immediate and error text is not written to logs.
 8. The CLI converts unexpected offline preflight failures into redacted JSON
    instead of allowing a traceback to reach the operator terminal or journal.
+9. Preflight now rejects unreadable/unwritable local runtime storage before
+   login; the current Fedora checkout passes every database and daily-job item.
 
 ## Safety conclusion
 

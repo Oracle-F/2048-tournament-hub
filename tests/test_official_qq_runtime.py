@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import sys
 from datetime import datetime, time
 from pathlib import Path
@@ -24,6 +25,7 @@ from bot_official_qq.runtime import (  # noqa: E402
     OfficialQQEventRunner,
     OfficialRuntimeConfig,
     OfficialRuntimeConfigError,
+    build_local_storage_readiness,
     create_botpy_client,
     preflight_official_qq_bot,
     run_official_qq_bot,
@@ -183,6 +185,145 @@ class OfficialRuntimeConfigTests(TestCase):
         self.assertTrue(config.stars_cup_schedule_enabled)
         self.assertEqual(config.stars_cup_send_time, time(hour=21, minute=30))
         self.assertNotIn(target, summary)
+
+
+class OfficialRuntimeStorageReadinessTests(TestCase):
+    def test_storage_readiness_reports_booleans_without_paths(self):
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            database = root / "bot.sqlite3"
+            roster = root / "roster.json"
+            background = root / "background.png"
+            database.touch()
+            roster.touch()
+            background.touch()
+            summary = build_local_storage_readiness(
+                _config(
+                    database,
+                    stars_cup_schedule_enabled=True,
+                    stars_cup_group_openid="opaque-group",
+                    stars_cup_relationship_state_path=(
+                        root / "relationship" / "state.json"
+                    ),
+                ),
+                daily_state_root=root / "state",
+                daily_export_root=root / "exports",
+                live_cache_path=root / "cache" / "live.json",
+                roster_path=roster,
+                background_path=background,
+            )
+
+        self.assertEqual(
+            summary["database"],
+            {
+                "checked": True,
+                "readable": True,
+                "writable": True,
+            },
+        )
+        stars_cup = summary["stars_cup"]
+        self.assertTrue(stars_cup["checked"])
+        self.assertTrue(stars_cup["roster_readable"])
+        self.assertTrue(stars_cup["background_readable"])
+        self.assertTrue(stars_cup["live_cache_writable"])
+        self.assertTrue(stars_cup["state_writable"])
+        self.assertTrue(stars_cup["relationship_state_writable"])
+        self.assertTrue(stars_cup["export_writable"])
+        self.assertNotIn(str(root), str(summary))
+        self.assertNotIn("opaque-group", str(summary))
+
+    def test_storage_readiness_rejects_database_without_write_access(self):
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            database = root / "bot.sqlite3"
+            database.touch()
+
+            def access(path, mode):
+                if Path(path) == database and mode == os.W_OK:
+                    return False
+                return True
+
+            with self.assertRaises(OfficialRuntimeConfigError) as raised:
+                build_local_storage_readiness(
+                    _config(database),
+                    access=access,
+                )
+
+        self.assertEqual(
+            raised.exception.code,
+            "database_not_writable",
+        )
+        self.assertNotIn(str(database), str(raised.exception))
+
+    def test_storage_readiness_rejects_unwritable_export_root(self):
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            database = root / "bot.sqlite3"
+            roster = root / "roster.json"
+            background = root / "background.png"
+            export_root = root / "exports"
+            database.touch()
+            roster.touch()
+            background.touch()
+            export_root.mkdir()
+
+            def access(path, mode):
+                if Path(path) == export_root and mode & os.W_OK:
+                    return False
+                return True
+
+            with self.assertRaises(OfficialRuntimeConfigError) as raised:
+                build_local_storage_readiness(
+                    _config(
+                        database,
+                        stars_cup_schedule_enabled=True,
+                        stars_cup_group_openid="opaque-group",
+                        stars_cup_relationship_state_path=(
+                            root / "relationship.json"
+                        ),
+                    ),
+                    daily_state_root=root / "state",
+                    daily_export_root=export_root,
+                    live_cache_path=root / "cache.json",
+                    roster_path=roster,
+                    background_path=background,
+                    access=access,
+                )
+
+        self.assertEqual(
+            raised.exception.code,
+            "stars_cup_storage_not_writable",
+        )
+        self.assertNotIn(str(export_root), str(raised.exception))
+
+    def test_storage_readiness_rejects_missing_daily_input(self):
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            database = root / "bot.sqlite3"
+            background = root / "background.png"
+            database.touch()
+            background.touch()
+            missing_roster = root / "missing-roster.json"
+
+            with self.assertRaises(OfficialRuntimeConfigError) as raised:
+                build_local_storage_readiness(
+                    _config(
+                        database,
+                        stars_cup_schedule_enabled=True,
+                        stars_cup_group_openid="opaque-group",
+                    ),
+                    daily_state_root=root / "state",
+                    daily_export_root=root / "exports",
+                    live_cache_path=root / "cache.json",
+                    roster_path=missing_roster,
+                    background_path=background,
+                )
+
+        self.assertEqual(
+            raised.exception.code,
+            "stars_cup_input_unreadable",
+        )
+        self.assertNotIn(str(missing_roster), str(raised.exception))
 
 
 class OfficialRuntimeClientTests(IsolatedAsyncioTestCase):
@@ -472,6 +613,10 @@ class OfficialRuntimePreflightTests(TestCase):
         self.assertEqual(summary["sdk"]["intent"], 1 << 25)
         self.assertFalse(summary["stars_cup_snapshot"]["checked"])
         self.assertFalse(summary["scheduler_state"]["checked"])
+        self.assertTrue(summary["local_storage"]["database"]["writable"])
+        self.assertFalse(
+            summary["local_storage"]["stars_cup"]["checked"]
+        )
         readiness = summary["platform_readiness"]
         self.assertEqual(readiness["application_review"]["status"], "UNKNOWN")
         self.assertEqual(readiness["intent_permission"]["status"], "UNKNOWN")
@@ -511,6 +656,12 @@ class OfficialRuntimePreflightTests(TestCase):
                     ),
                     botpy_module=FAKE_BOTPY,
                     snapshot_loader=Mock(return_value=loaded),
+                    storage_probe=Mock(
+                        return_value={
+                            "database": {"checked": True},
+                            "stars_cup": {"checked": True},
+                        }
+                    ),
                 )
 
         snapshot = summary["stars_cup_snapshot"]
@@ -545,6 +696,12 @@ class OfficialRuntimePreflightTests(TestCase):
                     config,
                     botpy_module=FAKE_BOTPY,
                     snapshot_loader=Mock(),
+                    storage_probe=Mock(
+                        return_value={
+                            "database": {"checked": True},
+                            "stars_cup": {"checked": True},
+                        }
+                    ),
                 )
 
         self.assertEqual(
@@ -604,6 +761,12 @@ class OfficialRuntimePreflightTests(TestCase):
                     ),
                     botpy_module=FAKE_BOTPY,
                     snapshot_loader=Mock(return_value=loaded),
+                    storage_probe=Mock(
+                        return_value={
+                            "database": {"checked": True},
+                            "stars_cup": {"checked": True},
+                        }
+                    ),
                 )
 
         readiness = summary["platform_readiness"]

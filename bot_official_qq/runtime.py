@@ -34,6 +34,12 @@ from bot_official_qq.scheduler import (
 from bot_official_qq.sdk_facade import Botpy2026ApiFacade
 from bot_official_qq.transport import OfficialEventDeduplicator, OfficialQQTransport
 from db import connect
+from event_hub import (
+    DEFAULT_BACKGROUND,
+    DEFAULT_LIVE_CACHE,
+    DEFAULT_OUTPUT_ROOT,
+    DEFAULT_ROSTER,
+)
 from services.stars_cup_bot_service import (
     StarsCupSnapshotUnavailable,
     load_latest_stars_cup_snapshot,
@@ -300,6 +306,114 @@ class OfficialRuntimeConfig:
                 "FRIEND_DEL",
             ],
         }
+
+
+def _readable_file(path: Path, access) -> bool:
+    candidate = Path(path)
+    return candidate.is_file() and access(candidate, os.R_OK)
+
+
+def _writable_directory_target(path: Path, access) -> bool:
+    candidate = Path(path)
+    while not candidate.exists():
+        parent = candidate.parent
+        if parent == candidate:
+            return False
+        candidate = parent
+    return candidate.is_dir() and access(
+        candidate,
+        os.W_OK | os.X_OK,
+    )
+
+
+def build_local_storage_readiness(
+    config: OfficialRuntimeConfig,
+    *,
+    daily_state_root: Path = DEFAULT_STATE_ROOT,
+    daily_export_root: Path = DEFAULT_OUTPUT_ROOT,
+    live_cache_path: Path = DEFAULT_LIVE_CACHE,
+    roster_path: Path = DEFAULT_ROSTER,
+    background_path: Path = DEFAULT_BACKGROUND,
+    access=os.access,
+) -> dict[str, Any]:
+    """Validate local runtime I/O permissions without creating probe files."""
+
+    database_readable = _readable_file(config.database_path, access)
+    if not database_readable:
+        raise OfficialRuntimeConfigError(
+            "官方 QQ Bot 数据库不可读",
+            code="database_not_readable",
+        )
+    database_writable = access(
+        config.database_path,
+        os.W_OK,
+    ) and _writable_directory_target(
+        config.database_path.parent,
+        access,
+    )
+    if not database_writable:
+        raise OfficialRuntimeConfigError(
+            "官方 QQ Bot 数据库或其父目录不可写",
+            code="database_not_writable",
+        )
+    summary: dict[str, Any] = {
+        "database": {
+            "checked": True,
+            "readable": True,
+            "writable": True,
+        },
+        "stars_cup": {
+            "checked": False,
+        },
+    }
+    if not config.stars_cup_schedule_enabled:
+        return summary
+
+    roster_readable = _readable_file(roster_path, access)
+    background_readable = _readable_file(background_path, access)
+    if not roster_readable or not background_readable:
+        raise OfficialRuntimeConfigError(
+            "群星杯每日生成所需名单或背景不可读",
+            code="stars_cup_input_unreadable",
+        )
+    live_cache_writable = _writable_directory_target(
+        Path(live_cache_path).parent,
+        access,
+    )
+    state_writable = _writable_directory_target(
+        daily_state_root,
+        access,
+    )
+    relationship_state_writable = _writable_directory_target(
+        config.stars_cup_relationship_state_path.parent,
+        access,
+    )
+    export_writable = _writable_directory_target(
+        daily_export_root,
+        access,
+    )
+    if not all(
+        (
+            live_cache_writable,
+            state_writable,
+            relationship_state_writable,
+            export_writable,
+        )
+    ):
+        raise OfficialRuntimeConfigError(
+            "群星杯缓存、状态或榜图目录不可写",
+            code="stars_cup_storage_not_writable",
+        )
+    summary["stars_cup"] = {
+        "checked": True,
+        "roster_readable": True,
+        "background_readable": True,
+        "live_cache_writable": True,
+        "state_writable": True,
+        "relationship_state_writable": True,
+        "export_writable": True,
+    }
+    return summary
 
 
 class OfficialQQEventRunner:
@@ -666,6 +780,7 @@ def preflight_official_qq_bot(
     *,
     botpy_module: ModuleType | Any | None = None,
     snapshot_loader=load_latest_stars_cup_snapshot,
+    storage_probe=build_local_storage_readiness,
 ) -> dict[str, Any]:
     """Validate the installed SDK and optional Stars Cup artifacts offline."""
 
@@ -701,6 +816,7 @@ def preflight_official_qq_bot(
         summary: dict[str, Any] = {
             "network_started": False,
             "config": config.safe_summary(),
+            "local_storage": storage_probe(config),
             "sdk": {
                 "package": "qq-botpy",
                 "version": _botpy_version(botpy),
