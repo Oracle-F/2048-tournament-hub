@@ -4,6 +4,7 @@ import asyncio
 import argparse
 import inspect
 import json
+import os
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -152,6 +153,7 @@ def _expand_expected_placeholders(value: Any):
     placeholders = {
         "{{PROJECT_ROOT_PATH}}": str(PROJECT_ROOT),
         "{{PROJECT_ROOT_URI}}": PROJECT_ROOT.as_uri(),
+        "{{PATH_SEPARATOR}}": os.sep,
     }
     if isinstance(value, str):
         result = value

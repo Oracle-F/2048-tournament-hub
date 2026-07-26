@@ -11,6 +11,11 @@ if str(PROJECT_ROOT) not in sys.path:
 
 
 class StartupChainScriptTests(TestCase):
+    def test_bot_requirements_install_the_configured_fastapi_driver(self):
+        requirements = (PROJECT_ROOT / "requirements-bot.txt").read_text(encoding="utf-8")
+
+        self.assertIn("nonebot2[fastapi]>=2.4,<3", requirements.splitlines())
+
     def test_startup_stack_launches_napcat_directly_and_hidden(self):
         script_text = (PROJECT_ROOT / "scripts" / "start_eventscore_stack.ps1").read_text(encoding="utf-8")
 

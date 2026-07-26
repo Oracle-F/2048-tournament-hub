@@ -62,7 +62,7 @@
         },
         {
           "op": "log_write",
-          "path": "{{PROJECT_ROOT_PATH}}\\data\\tmp\\tests\\napcat_runtime_plain_offline.log",
+          "path": "{{PROJECT_ROOT_PATH}}{{PATH_SEPARATOR}}data{{PATH_SEPARATOR}}tmp{{PATH_SEPARATOR}}tests{{PATH_SEPARATOR}}napcat_runtime_plain_offline.log",
           "line_count": 1
         },
         {
@@ -151,7 +151,7 @@
         },
         {
           "op": "log_write",
-          "path": "{{PROJECT_ROOT_PATH}}\\data\\tmp\\tests\\napcat_runtime_kicked_offline.log",
+          "path": "{{PROJECT_ROOT_PATH}}{{PATH_SEPARATOR}}data{{PATH_SEPARATOR}}tmp{{PATH_SEPARATOR}}tests{{PATH_SEPARATOR}}napcat_runtime_kicked_offline.log",
           "line_count": 2
         },
         {

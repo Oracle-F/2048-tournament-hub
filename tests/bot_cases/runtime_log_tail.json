@@ -23,14 +23,14 @@
       "outputs": [
         {
           "op": "write",
-          "path": "{{PROJECT_ROOT_PATH}}\\data\\tmp\\tests\\napcat_runtime_tail_case1.log",
+          "path": "{{PROJECT_ROOT_PATH}}{{PATH_SEPARATOR}}data{{PATH_SEPARATOR}}tmp{{PATH_SEPARATOR}}tests{{PATH_SEPARATOR}}napcat_runtime_tail_case1.log",
           "line_count": 4
         },
         {
           "op": "tail",
           "snapshot": {
             "present": true,
-            "path": "{{PROJECT_ROOT_PATH}}\\data\\tmp\\tests\\napcat_runtime_tail_case1.log",
+            "path": "{{PROJECT_ROOT_PATH}}{{PATH_SEPARATOR}}data{{PATH_SEPARATOR}}tmp{{PATH_SEPARATOR}}tests{{PATH_SEPARATOR}}napcat_runtime_tail_case1.log",
             "line_count": 4,
             "excerpt": [
               "line 3",
@@ -65,7 +65,7 @@
           "op": "tail",
           "snapshot": {
             "present": false,
-            "path": "{{PROJECT_ROOT_PATH}}\\data\\tmp\\tests\\napcat_runtime_tail_case2.log",
+            "path": "{{PROJECT_ROOT_PATH}}{{PATH_SEPARATOR}}data{{PATH_SEPARATOR}}tmp{{PATH_SEPARATOR}}tests{{PATH_SEPARATOR}}napcat_runtime_tail_case2.log",
             "line_count": 0,
             "excerpt": [],
             "last_line": null,
