@@ -887,6 +887,14 @@ def _format_float(value, ndigits=2):
     return ("{:.%df}" % ndigits).format(float(value))
 
 
+def _format_rating_value(value):
+    return "暂无数据" if value is None else _format_float(value, 1)
+
+
+def _format_rank_value(value):
+    return "暂无数据" if value is None else "#{}".format(value)
+
+
 def _month_range_of_previous_month(now):
     month_start = datetime(year=now.year, month=now.month, day=1, tzinfo=now.tzinfo)
     prev_end = month_start
@@ -1013,6 +1021,23 @@ def _month_rating_label(month_rating):
     return "上个月月rating"
 
 
+def _format_month_rating_value(month_rating):
+    value = _safe_float(month_rating.get("value"))
+    if value is None or value < 0:
+        return "0"
+    return _format_float(value, 1)
+
+
+def _month_rating_display(month_rating):
+    if month_rating is None:
+        return "{}：暂无数据".format(_month_rating_label(month_rating))
+    return "{}：{}（月局数：{}）".format(
+        _month_rating_label(month_rating),
+        _format_month_rating_value(month_rating),
+        _month_game_count_label(month_rating),
+    )
+
+
 def _pb_score(games):
     values = [int(game["score"]) for game in games if game.get("score") is not None]
     if not values:
@@ -1113,11 +1138,23 @@ def _count_games_with_predicate(games, predicate):
     return count
 
 
-def _count_games_with_max_tile_at_least(games, threshold):
+def _game_reached_tile(game, threshold, *, score_floor=None):
     wanted = int(threshold)
+    max_tile = _safe_int(game.get("max_tile"))
+    if max_tile is not None:
+        return max_tile >= wanted
+    if game.get("board_values"):
+        return False
+    if score_floor is None:
+        return False
+    score = _safe_int(game.get("score"))
+    return score is not None and score >= int(score_floor)
+
+
+def _count_games_with_max_tile_at_least(games, threshold, *, score_floor=None):
     return _count_games_with_predicate(
         games,
-        lambda game: game.get("max_tile") is not None and int(game["max_tile"]) >= wanted,
+        lambda game: _game_reached_tile(game, threshold, score_floor=score_floor),
     )
 
 
@@ -1171,37 +1208,31 @@ def _game_covers_tiles(game, tiles):
 
 
 def _is_32k_plus_game(game):
-    max_tile = game.get("max_tile")
-    if max_tile is not None and int(max_tile) >= 32768:
+    max_tile = _safe_int(game.get("max_tile"))
+    if max_tile is not None and max_tile >= 32768:
         return True
-    return _has_tile(game, 32768)
+    if _has_tile(game, 32768):
+        return True
+    if game.get("board_values"):
+        return False
+    score = _safe_int(game.get("score"))
+    return score is not None and score >= VERSE_QUERY_4X4_32K_RATIO_SCORE_FLOOR
 
 
 def _calc_32k_ratio_metrics(games):
     count_32k_plus = 0
     numerator = 0
     denominator = 0
-    required_chain = (32768, 16384, 8192, 4096, 2048, 1024)
     for game in games:
-        counts = {}
-        for value in (game.get("board_values") or []):
-            exp = _tile_exponent(value)
-            if exp is None:
-                continue
-            counts[exp] = counts.get(exp, 0) + 1
-        chain_length = 0
-        for tile in required_chain:
-            exp = _tile_exponent(tile)
-            if exp is None or counts.get(exp, 0) <= 0:
-                break
-            chain_length += 1
-        if chain_length >= 1:
-            count_32k_plus += 1
+        if not _is_32k_plus_game(game):
+            continue
+        count_32k_plus += 1
+        if _game_covers_tiles(game, (32768,)):
             denominator += 1
-        if chain_length >= 2:
-            numerator += 1
+            if _game_covers_tiles(game, (32768, 16384)):
+                numerator += 1
     ratio = None if denominator <= 0 else (float(numerator) / float(denominator))
-    eligible = count_32k_plus >= 10 and ratio is not None
+    eligible = denominator >= 10 and ratio is not None
     return {
         "count_32k_plus": count_32k_plus,
         "numerator": numerator,
@@ -1218,9 +1249,12 @@ def _count_full_board_level(game, variant_code):
     }.get((variant_code or "").lower())
     if not thresholds:
         return 0
+    required_cells = {"2x4": 8, "3x3": 9}.get((variant_code or "").lower())
+    values = [int(value) for value in (game.get("board_values") or []) if value]
+    if required_cells is not None and len(values) < required_cells:
+        return 0
     total_sum = _safe_int(game.get("board_sum"))
     if total_sum is None:
-        values = [int(value) for value in (game.get("board_values") or []) if value]
         if not values:
             return 0
         total_sum = sum(values)
@@ -1320,7 +1354,9 @@ def _load_score_focused_games(
         return cached
     first_payload = _fetch_user_page(username, variant_code, 1, sort="score", desc=True)
     if not isinstance(first_payload, dict):
-        return _heavy_query_cache_get_stale(cache_key)
+        if allow_stale_cache:
+            return _heavy_query_cache_get_stale(cache_key)
+        return None
     total_games = _safe_int(first_payload.get("totalGames"))
     total_pages = 1 if not total_games or total_games <= 0 else max(1, int(math.ceil(float(total_games) / float(VERSE_QUERY_PAGE_SIZE))))
     fetch_pages = min(total_pages, int(VERSE_QUERY_MAX_PAGES))
@@ -1427,15 +1463,15 @@ def _load_score_focused_games(
 
 def _summary_rating_line(rating_snapshot):
     if rating_snapshot is None:
-        return "rating - | 排名 -"
+        return "rating 暂无数据 | 排名 暂无数据"
     if rating_snapshot.get("source") == "verse_live":
-        return "rating {} | 排名 #{}".format(
-            _format_float(rating_snapshot.get("rating_value"), 1),
-            rating_snapshot.get("rank_value"),
+        return "rating {} | 排名 {}".format(
+            _format_rating_value(rating_snapshot.get("rating_value")),
+            _format_rank_value(rating_snapshot.get("rank_value")),
         )
-    return "本地rating {} | 本地排名 #{}".format(
-        _format_float(rating_snapshot.get("rating_value"), 1),
-        rating_snapshot.get("rank_value"),
+    return "本地rating {} | 本地排名 {}".format(
+        _format_rating_value(rating_snapshot.get("rating_value")),
+        _format_rank_value(rating_snapshot.get("rank_value")),
     )
 
 
@@ -1496,35 +1532,35 @@ def _score_focused_spec(token):
         return {
             "min_required_tile": 8192,
             "score_floor": four_x_four_score_floor["8ks"],
-            "predicate": lambda game: (game.get("max_tile") or 0) >= 8192,
+            "predicate": lambda game: _game_reached_tile(game, 8192, score_floor=four_x_four_score_floor["8ks"]),
             "allow_stale_cache": False,
         }
     if lowered == "16ks":
         return {
             "min_required_tile": 16384,
             "score_floor": four_x_four_score_floor["16ks"],
-            "predicate": lambda game: (game.get("max_tile") or 0) >= 16384,
+            "predicate": lambda game: _game_reached_tile(game, 16384, score_floor=four_x_four_score_floor["16ks"]),
             "allow_stale_cache": False,
         }
     if lowered == "32ks":
         return {
             "min_required_tile": 32768,
             "score_floor": four_x_four_score_floor["32ks"],
-            "predicate": lambda game: (game.get("max_tile") or 0) >= 32768,
+            "predicate": _is_32k_plus_game,
             "allow_stale_cache": False,
         }
     if lowered == "65ks":
         return {
             "min_required_tile": 65536,
             "score_floor": four_x_four_score_floor["65ks"],
-            "predicate": lambda game: (game.get("max_tile") or 0) >= 65536,
+            "predicate": lambda game: _game_reached_tile(game, 65536, score_floor=four_x_four_score_floor["65ks"]),
             "allow_stale_cache": False,
         }
     if lowered == "4ks":
         return {
             "min_required_tile": 4096,
             "score_floor": 37000,
-            "predicate": lambda game: (game.get("max_tile") or 0) >= 4096,
+            "predicate": lambda game: _game_reached_tile(game, 4096, score_floor=37000),
             "allow_stale_cache": False,
         }
     if lowered == "8/16":
@@ -1608,39 +1644,38 @@ def _score_focused_spec(token):
         return {
             "min_required_tile": 512,
             "score_floor": 3200,
-            "predicate": lambda game: _has_tile(game, 512),
+            "predicate": lambda game: _game_reached_tile(game, 512, score_floor=3200),
             "allow_stale_cache": False,
         }
     if lowered == "768s":
         return {
             "min_required_tile": 512,
             "score_floor": 5300,
-            "predicate": lambda game: _has_tiles(game, (512, 256)),
+            "predicate": lambda game: _game_covers_tiles(game, (512, 256)),
             "allow_stale_cache": False,
         }
     if lowered == "1024s":
         return {
             "min_required_tile": 1024,
             "score_floor": 7500,
-            "predicate": lambda game: _has_tile(game, 1024),
+            "predicate": lambda game: _game_reached_tile(game, 1024, score_floor=7500),
             "allow_stale_cache": False,
         }
     if lowered == "1536s":
         return {
             "min_required_tile": 1024,
             "score_floor": 12200,
-            "predicate": lambda game: _has_tiles(game, (1024, 512)),
+            "predicate": lambda game: _game_covers_tiles(game, (1024, 512)),
             "allow_stale_cache": False,
         }
     if lowered == "24满盘":
         window = _full_board_score_window("2x4", 1)
         if window is None:
             return None
-        score_floor, score_ceiling = window
+        score_floor, _score_ceiling = window
         return {
             "min_required_tile": 512,
             "score_floor": score_floor,
-            "score_ceiling": score_ceiling,
             "predicate": lambda game: _count_full_board_level(game, "2x4") >= 1,
             "allow_stale_cache": False,
         }
@@ -1648,11 +1683,10 @@ def _score_focused_spec(token):
         window = _full_board_score_window("3x3", 1)
         if window is None:
             return {"min_required_tile": 1024, "full_scan": True, "predicate": lambda game: _count_full_board_level(game, "3x3") >= 1}
-        score_floor, score_ceiling = window
+        score_floor, _score_ceiling = window
         return {
             "min_required_tile": 1024,
             "score_floor": score_floor,
-            "score_ceiling": score_ceiling,
             "predicate": lambda game: _count_full_board_level(game, "3x3") >= 1,
             "allow_stale_cache": False,
         }
@@ -1670,11 +1704,10 @@ def _score_focused_spec(token):
                 "predicate": lambda game, variant=variant, wanted_level=wanted_level: _count_full_board_level(game, variant) >= wanted_level,
                 "allow_stale_cache": False,
             }
-        score_floor, score_ceiling = window
+        score_floor, _score_ceiling = window
         return {
             "min_required_tile": 512 if variant == "2x4" else 1024,
             "score_floor": score_floor,
-            "score_ceiling": score_ceiling,
             "predicate": lambda game, variant=variant, wanted_level=wanted_level: _count_full_board_level(game, variant) >= wanted_level,
             "allow_stale_cache": False,
         }
@@ -1686,6 +1719,13 @@ def _score_focused_spec(token):
             "allow_stale_cache": False,
         }
     return None
+
+
+def _score_focused_count_value(games, token):
+    spec = _score_focused_spec(token)
+    if spec is None:
+        return 0
+    return _count_games_with_predicate(games, spec["predicate"])
 
 
 def _score_focused_query_disallows_local_fallback(token):
@@ -1718,30 +1758,109 @@ def _render_mode_summary(player, variant_code, rating_snapshot, games):
             lines.append("32k数量 {}".format(count_32k))
         if ratio_metrics["eligible"]:
             lines.append("32k综率 {:.4%}".format(ratio_metrics["ratio"]))
-        lines.append(
-            "{} {}".format(
-                _month_rating_label(month_rating),
-                "-"
-                if month_rating is None
-                else "{}（月局数：{}）".format(
-                    _format_float(month_rating["value"], 1),
-                    _month_game_count_label(month_rating),
-                )
-            )
-        )
+        lines.append(_month_rating_display(month_rating))
     elif variant_code == "3x4":
-        count_4k = _count_games_with_max_tile_at_least(games, 4096)
+        count_4k = _score_focused_count_value(games, "4ks")
         lines.append("4k数量 {}".format(count_4k))
     elif variant_code == "3x3":
-        lines.append("1024数量 {}".format(_count_games_with_predicate(games, lambda game: _has_tile(game, 1024))))
+        lines.append("1024数量 {}".format(_score_focused_count_value(games, "1024s")))
         full_board_count = _count_games_with_predicate(games, lambda game: _count_full_board_level(game, "3x3") >= 1)
         if full_board_count > 0:
             lines.append("满盘数量 {}".format(full_board_count))
     elif variant_code == "2x4":
-        lines.append("512数量 {}".format(_count_games_with_predicate(games, lambda game: _has_tile(game, 512))))
+        lines.append("512数量 {}".format(_score_focused_count_value(games, "512s")))
         full_board_count = _count_games_with_predicate(games, lambda game: _count_full_board_level(game, "2x4") >= 1)
         if full_board_count > 0:
             lines.append("满盘数量 {}".format(full_board_count))
+    return "\n".join(lines)
+
+
+def _format_count(value):
+    return "-" if value is None else str(int(value))
+
+
+def _load_score_focused_count(username, variant_code, token):
+    spec = _score_focused_spec(token)
+    if spec is None:
+        return None
+    games = _load_score_focused_games(
+        username,
+        variant_code,
+        predicate=spec["predicate"],
+        min_required_tile=spec["min_required_tile"],
+        cache_key_hint=token,
+        full_scan=bool(spec.get("full_scan")),
+        score_floor=spec.get("score_floor"),
+        score_ceiling=spec.get("score_ceiling"),
+        allow_stale_cache=bool(spec.get("allow_stale_cache", True)),
+    )
+    if games is None:
+        return None
+    return len(games)
+
+
+def _render_timed_mode_summary(player, variant_code, rating_snapshot, pb_value, tile_count, full_board_count):
+    mode_label = VARIANT_TO_MODE_LABEL.get(variant_code, variant_code)
+    lines = [
+        "模式: {}".format(mode_label),
+        _summary_rating_line(rating_snapshot),
+        "PB {}".format(pb_value if pb_value is not None else "-"),
+    ]
+    if variant_code == "2x4":
+        lines.append("512数量 {}".format(_format_count(tile_count)))
+    elif variant_code == "3x3":
+        lines.append("1024数量 {}".format(_format_count(tile_count)))
+    if full_board_count is None or int(full_board_count) > 0:
+        lines.append("满盘数量 {}".format(_format_count(full_board_count)))
+    return "\n".join(lines)
+
+
+def _load_32k_ratio_metrics(username):
+    spec = _score_focused_spec("32k综率")
+    if spec is None:
+        return None
+    games = _load_score_focused_games(
+        username,
+        "4x4",
+        predicate=spec["predicate"],
+        min_required_tile=spec["min_required_tile"],
+        cache_key_hint="32k综率",
+        score_floor=spec["score_floor"],
+        allow_stale_cache=bool(spec.get("allow_stale_cache", True)),
+    )
+    if games is None:
+        return None
+    return _calc_32k_ratio_metrics(games)
+
+
+def _render_three_x_four_summary(rating_snapshot, pb_value, count_4k):
+    return "\n".join(
+        [
+            "模式: 3x4",
+            _summary_rating_line(rating_snapshot),
+            "PB {}".format(pb_value if pb_value is not None else "-"),
+            "4k数量 {}".format(_format_count(count_4k)),
+        ]
+    )
+
+
+def _render_four_x_four_summary(rating_snapshot, pb_value, ratio_metrics, month_rating):
+    lines = [
+        "模式: 4x4",
+        _summary_rating_line(rating_snapshot),
+        "PB {}".format(pb_value if pb_value is not None else "-"),
+    ]
+    if ratio_metrics is None:
+        lines.append("32k数量 -")
+    else:
+        count_32k = ratio_metrics["count_32k_plus"]
+        if count_32k > 0:
+            lines.append("32k数量 {}".format(count_32k))
+        if ratio_metrics["eligible"]:
+            lines.append("32k综率 {:.4%}".format(ratio_metrics["ratio"]))
+    lines.append(
+        _month_rating_display(month_rating)
+    )
     return "\n".join(lines)
 
 
@@ -1765,7 +1884,7 @@ def _wr_reply(variant_code):
         mode_label,
         username,
         pb if pb is not None else "-",
-        _format_float(rating_value, 1) if rating_value is not None else "-",
+        _format_rating_value(rating_value),
     )
 
 
@@ -1821,13 +1940,9 @@ def _render_token_query(player, token, variant_code, rating_snapshot, games):
         if variant_code not in {"4x4", "3x4"}:
             return "{} 月rating仅支持 4x4/3x4。".format(mode_label)
         month_rating = _calc_month_rating(games, variant_code)
-        if month_rating is None:
-            return "{} {}暂无数据".format(mode_label, _month_rating_label(month_rating))
-        return "{} {} {}（月局数：{}）".format(
+        return "{} {}".format(
             mode_label,
-            _month_rating_label(month_rating),
-            _format_float(month_rating["value"], 1),
-            _month_game_count_label(month_rating),
+            _month_rating_display(month_rating),
         )
     if token.endswith("ra"):
         if variant_code is None:
@@ -1835,15 +1950,15 @@ def _render_token_query(player, token, variant_code, rating_snapshot, games):
         if rating_snapshot is None:
             return "{} rating 暂无数据".format(mode_label)
         if rating_snapshot.get("source") == "verse_live":
-            return "{} rating {} | 排名 #{}".format(
+            return "{} rating {} | 排名 {}".format(
                 mode_label,
-                _format_float(rating_snapshot.get("rating_value"), 1),
-                rating_snapshot.get("rank_value") if rating_snapshot.get("rank_value") is not None else "-",
+                _format_rating_value(rating_snapshot.get("rating_value")),
+                _format_rank_value(rating_snapshot.get("rank_value")),
             )
-        return "{} 本地rating {} | 本地排名 #{} | RD {} | 参赛 {}".format(
+        return "{} 本地rating {} | 本地排名 {} | RD {} | 参赛 {}".format(
             mode_label,
-            _format_float(rating_snapshot.get("rating_value"), 1),
-            rating_snapshot.get("rank_value"),
+            _format_rating_value(rating_snapshot.get("rating_value")),
+            _format_rank_value(rating_snapshot.get("rank_value")),
             _format_float(rating_snapshot.get("rating_deviation"), 1),
             rating_snapshot.get("event_count"),
         )
@@ -1868,13 +1983,13 @@ def _render_token_query(player, token, variant_code, rating_snapshot, games):
         )
 
     if token == "8ks":
-        return "4x4 8k数量 {}".format(_count_games_with_max_tile_at_least(games, 8192))
+        return "4x4 8k数量 {}".format(_score_focused_count_value(games, "8ks"))
     if token == "16ks":
-        return "4x4 16k数量 {}".format(_count_games_with_max_tile_at_least(games, 16384))
+        return "4x4 16k数量 {}".format(_score_focused_count_value(games, "16ks"))
     if token == "32ks":
-        return "4x4 32k数量 {}".format(_count_games_with_max_tile_at_least(games, 32768))
+        return "4x4 32k数量 {}".format(_score_focused_count_value(games, "32ks"))
     if token == "65ks":
-        return "4x4 65k数量 {}".format(_count_games_with_max_tile_at_least(games, 65536))
+        return "4x4 65k数量 {}".format(_score_focused_count_value(games, "65ks"))
     if token == "8/16":
         return _inferential_stat(
             "4x4 8/16数量",
@@ -1922,7 +2037,7 @@ def _render_token_query(player, token, variant_code, rating_snapshot, games):
         )
 
     if token == "4ks":
-        return "3x4 4k数量 {}".format(_count_games_with_max_tile_at_least(games, 4096))
+        return "3x4 4k数量 {}".format(_score_focused_count_value(games, "4ks"))
     if token == "2/4":
         return _inferential_stat(
             "3x4 2/4数量",
@@ -1953,18 +2068,18 @@ def _render_token_query(player, token, variant_code, rating_snapshot, games):
         )
 
     if token == "512s":
-        return "2x4 512数量 {}".format(_count_games_with_predicate(games, lambda game: _has_tile(game, 512)))
+        return "2x4 512数量 {}".format(_score_focused_count_value(games, "512s"))
     if token == "768s":
-        return "2x4 768数量 {}".format(_count_games_with_predicate(games, lambda game: _has_tiles(game, (512, 256))))
+        return "2x4 768数量 {}".format(_score_focused_count_value(games, "768s"))
     if token == "1024s":
-        return "3x3 1024数量 {}".format(_count_games_with_predicate(games, lambda game: _has_tile(game, 1024)))
+        return "3x3 1024数量 {}".format(_score_focused_count_value(games, "1024s"))
     if token == "1536s":
-        return "3x3 1536数量 {}".format(_count_games_with_predicate(games, lambda game: _has_tiles(game, (1024, 512))))
+        return "3x3 1536数量 {}".format(_score_focused_count_value(games, "1536s"))
 
     if token == "32k综率":
         metrics = _calc_32k_ratio_metrics(games)
-        if metrics["count_32k_plus"] < 10:
-            return "4x4 32k综率暂无（需至少10局32k及以上，当前{}局）".format(metrics["count_32k_plus"])
+        if not metrics["eligible"]:
+            return "4x4 32k综率暂无（需至少10局可判定32k及以上，当前{}局）".format(metrics["denominator"])
         if metrics["ratio"] is None:
             return "4x4 32k综率暂无（分母为0）"
         return "4x4 32k综率 {:.4%}".format(metrics["ratio"])
@@ -2087,6 +2202,41 @@ def handle_verse_query_message(connection, *, bot_platform, bot_user_id, text):
                 lookup_variant,
                 allow_local_fallback=allow_local_fallback,
             )
+            if token in {"2x4", "3x3"}:
+                pb_value = None if rating_snapshot is None else _safe_int(rating_snapshot.get("best_score"))
+                if pb_value is None:
+                    pb_value = _load_live_pb(target_player["username"], lookup_variant)
+                tile_token = "512s" if token == "2x4" else "1024s"
+                full_board_token = "24满盘" if token == "2x4" else "33满盘"
+                tile_count = _load_score_focused_count(target_player["username"], lookup_variant, tile_token)
+                full_board_count = _load_score_focused_count(target_player["username"], lookup_variant, full_board_token)
+                body = _render_timed_mode_summary(
+                    target_player,
+                    lookup_variant,
+                    rating_snapshot,
+                    pb_value,
+                    tile_count,
+                    full_board_count,
+                )
+                player_label = target_player.get("username") or target_player.get("display_name") or "-"
+                return "{}\n{}".format("玩家: {}".format(player_label), body)
+            if token == "3x4":
+                pb_value = None if rating_snapshot is None else _safe_int(rating_snapshot.get("best_score"))
+                if pb_value is None:
+                    pb_value = _load_live_pb(target_player["username"], lookup_variant)
+                count_4k = _load_score_focused_count(target_player["username"], lookup_variant, "4ks")
+                body = _render_three_x_four_summary(rating_snapshot, pb_value, count_4k)
+                player_label = target_player.get("username") or target_player.get("display_name") or "-"
+                return "{}\n{}".format("玩家: {}".format(player_label), body)
+            if token == "4x4":
+                pb_value = None if rating_snapshot is None else _safe_int(rating_snapshot.get("best_score"))
+                if pb_value is None:
+                    pb_value = _load_live_pb(target_player["username"], lookup_variant)
+                ratio_metrics = _load_32k_ratio_metrics(target_player["username"])
+                month_rating = _calc_month_rating(_load_month_games(target_player["username"], lookup_variant), lookup_variant)
+                body = _render_four_x_four_summary(rating_snapshot, pb_value, ratio_metrics, month_rating)
+                player_label = target_player.get("username") or target_player.get("display_name") or "-"
+                return "{}\n{}".format("玩家: {}".format(player_label), body)
             games = _load_games(
                 connection,
                 target_player["player_id"],

@@ -94,6 +94,8 @@ def _env_positive_int(name, default_value):
 
 
 def _append_group_debug(message):
+    if not BOT_GROUP_DEBUG_LOG_ENABLED:
+        return
     timestamp = datetime.now(LOCAL_TIMEZONE).strftime("%Y-%m-%d %H:%M:%S")
     try:
         GROUP_DEBUG_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -129,10 +131,12 @@ GROUP_CHAT_RATE_LIMIT_PER_MINUTE = _env_positive_int("GROUP_CHAT_RATE_LIMIT_PER_
 GROUP_CHAT_GLOBAL_RATE_LIMIT_PER_MINUTE = _env_positive_int("GROUP_CHAT_GLOBAL_RATE_LIMIT_PER_MINUTE", 12)
 GROUP_CHAT_MAX_CONCURRENT_REPLY_JOBS_PER_GROUP = _env_positive_int("GROUP_CHAT_MAX_CONCURRENT_REPLY_JOBS_PER_GROUP", 2)
 GROUP_CHAT_MAX_REPLY_CHARS = _env_positive_int("GROUP_CHAT_MAX_REPLY_CHARS", 180)
+GROUP_CHAT_COMMAND_PREFIXES = ("/", "／")
+BOT_GROUP_DEBUG_LOG_ENABLED = _env_flag("BOT_GROUP_DEBUG_LOG_ENABLED", False)
 ONEBOT_REPLY_LOOKUP_ENABLED = _env_flag("ONEBOT_REPLY_LOOKUP_ENABLED", False)
 BOT_HELP_IMAGE_ENABLED = _env_flag("BOT_HELP_IMAGE_ENABLED", True)
 BOT_LOCK_UPLOAD_ENABLED = _env_flag("BOT_LOCK_UPLOAD_ENABLED", True)
-BOT_SUBMIT_SCORE_ENABLED = _env_flag("BOT_SUBMIT_SCORE_ENABLED", True)
+BOT_SUBMIT_SCORE_ENABLED = _env_flag("BOT_SUBMIT_SCORE_ENABLED", False)
 GROUP_CHAT_WHITELIST = {
     item.strip()
     for item in str(os.getenv("GROUP_CHAT_WHITELIST", "")).split(",")
@@ -174,7 +178,9 @@ def patch_onebot_reply_lookup(onebot_bot_module):
         return False
     global _ONEBOT_REPLY_LOOKUP_SKIP_CHECK
 
-    def _skip_onebot_reply_lookup(*args, **kwargs):
+    # NoneBot's Bot.handle_event awaits _check_reply, so the no-op shim must
+    # stay awaitable even when we disable reply lookups.
+    async def _skip_onebot_reply_lookup(*args, **kwargs):
         return None
 
     _ONEBOT_REPLY_LOOKUP_SKIP_CHECK = _skip_onebot_reply_lookup
@@ -478,6 +484,24 @@ def _is_top_level_command(message):
     return any(text.startswith(prefix) for prefix in prefixes)
 
 
+def normalize_group_command_text(text):
+    message = str(text or "").strip()
+    if not message:
+        return message
+    for prefix in GROUP_CHAT_COMMAND_PREFIXES:
+        if not message.startswith(prefix):
+            continue
+        return message[len(prefix) :].lstrip(" \t")
+    return message
+
+
+def is_group_command_prefixed(text):
+    message = str(text or "").strip()
+    if not message:
+        return False
+    return normalize_group_command_text(message) != message
+
+
 def _group_flow_scope(group_id):
     return "group:{}".format(group_id)
 
@@ -547,19 +571,19 @@ def _group_help_summary():
         return image
     return (
         "群聊可用命令：赛事、报名、我的成绩、预约、提交成绩、floor、finish。\n"
-        "查询语法：@bot [用户名] 指令（用户名可省略）。\n"
-        "个人看板：@bot 用户名。\n"
+        "查询语法：/[用户名] 指令（用户名可省略）。\n"
+        "个人看板：/用户名。\n"
         "绑定请私聊 bot 发送“绑定”，并设置4-5位绑定密码。\n"
         "群里同一时段请求太多时会触发总量限流。\n"
         "同一群同时处理的慢请求也会受并发限制。\n"
-        "示例：@bot 44ra、@bot Oracle_F 32k综率、@bot Oracle_F。"
+        "示例：/44ra、/Oracle_F 32k综率、/Oracle_F。"
     )
 
 
 def _group_long_reply_summary(message):
     normalized = (message or "").strip()
     if normalized.lower() in {"help", "帮助", "菜单"}:
-        return "帮助内容较长，请私聊 bot 发送 help 查看完整帮助。"
+        return "帮助内容较长，请 @bot help 查看完整帮助。"
     if normalized in {"我的成绩", "我的限时赛成绩"}:
         return "成绩内容较长，请私聊 bot 发送 我的成绩 查看完整结果。"
     if normalized.startswith("报名"):
@@ -1397,7 +1421,7 @@ def _build_help_text():
         "16. floor\n"
         "17. finish\n"
         "18. [用户名] 指令查询（如 44ra、Oracle_F 32k综率）\n"
-        "19. 群里可用：@bot 用户名 查看个人看板\n"
+        "19. 群里可用：/用户名 查看个人看板\n"
         "提示：进行中的流程里，随时发送“取消”退出。\n"
         "时间输入固定格式：YYYY-MM-DD HH:MM（例如 2026-05-22 20:30）。"
     )
@@ -1564,8 +1588,6 @@ def _help_image_cq(mode="player"):
         title = "QQ Bot 选手帮助"
     elif mode == "group":
         path = HELP_IMAGE_DIR / "group_help.png"
-        if path.exists():
-            return "[CQ:image,file={}]".format(path.as_uri())
         sections = [
             {
                 "title": "比赛功能（需@bot）",
@@ -1647,6 +1669,8 @@ def _help_image_cq(mode="player"):
             },
         ]
         title = "QQ Bot 管理员帮助"
+    if path.exists():
+        return "[CQ:image,file={}]".format(path.as_uri())
     ok = _build_help_image(path, title, sections)
     if not ok:
         return None
@@ -2095,6 +2119,9 @@ def _handle_submit_flow(connection, *, binding, bot_platform, bot_user_id, text,
     flow = _get_flow(bot_platform, bot_user_id, flow_scope=flow_scope)
     if flow is None or flow.get("action") != "submit_score":
         return None
+    if not BOT_SUBMIT_SCORE_ENABLED:
+        _clear_flow(bot_platform, bot_user_id, flow_scope=flow_scope)
+        return "当前已关闭 bot 提交成绩入口，请改用 Hub 手动录入。"
 
     message = (text or "").strip()
     if message in {"取消", "cancel", "CANCEL"}:
@@ -2174,6 +2201,9 @@ def _handle_floor_or_finish_flow(connection, *, binding, bot_platform, bot_user_
         "await_final_replay",
     }:
         return None
+    if not BOT_LOCK_UPLOAD_ENABLED:
+        _clear_flow(bot_platform, bot_user_id, flow_scope=flow_scope)
+        return "当前已关闭 bot 锁局上传入口，请改用 Hub 手动处理。"
 
     message = (text or "").strip()
     if message in {"取消", "cancel", "CANCEL"}:
@@ -2873,6 +2903,8 @@ def handle_private_message(connection, *, bot_platform, bot_user_id, text, messa
 
     try:
         if message.startswith("提交成绩 ") or message.startswith("提交 "):
+            if not BOT_SUBMIT_SCORE_ENABLED:
+                return "当前已关闭 bot 提交成绩入口，请改用 Hub 手动录入。"
             prefix = "提交成绩 " if message.startswith("提交成绩 ") else "提交 "
             fields = _parse_kv_text(message[len(prefix) :])
             try:
@@ -3274,6 +3306,9 @@ def handle_group_message(
     if not is_at_bot:
         _append_group_debug("drop reason=not_at_bot group_id={} user_id={}".format(group_id, bot_user_id))
         return None
+    if message.lower() in {"help", "帮助", "菜单"}:
+        _append_group_debug("reply reason=group_help group_id={} user_id={}".format(group_id, bot_user_id))
+        return _group_help_summary()
     if not message:
         _append_group_debug("reply reason=empty_text_help group_id={} user_id={}".format(group_id, bot_user_id))
         return _group_help_summary()
@@ -3292,10 +3327,6 @@ def handle_group_message(
     if _group_should_consume_rate_limit(message, has_flow=existing_flow is not None) and not _consume_group_global_rate_limit(group_id):
         _append_group_debug("reply reason=global_rate_limit group_id={} user_id={}".format(group_id, bot_user_id))
         return "群里请求太多了，请稍后再试。"
-
-    if message.lower() in {"help", "帮助", "菜单"}:
-        _append_group_debug("reply reason=group_help group_id={} user_id={}".format(group_id, bot_user_id))
-        return _group_help_summary()
 
     dashboard_reply = _handle_group_dashboard_query(connection, message=message)
     if dashboard_reply is not None:

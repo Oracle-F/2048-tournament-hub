@@ -1,0 +1,21 @@
+{
+  "name": "direct score submission respects the disabled toggle",
+  "description": "验证直提交流程也会跟随 BOT_SUBMIT_SCORE_ENABLED=false 收口，避免绕过开关直接入榜。",
+  "input": {
+    "target": "bot.handle_private_message",
+    "args": {
+      "bot_user_id": "10009",
+      "text": "提交成绩 score=12345 ended_at=2026-06-18 10:00:00",
+      "module_overrides": {
+        "BOT_SUBMIT_SCORE_ENABLED": false
+      }
+    },
+    "seed_sql": [
+      "INSERT INTO players (id, display_name, status, created_at, updated_at) VALUES (9004, 'BoundUser', 'active', '2026-06-03 09:00:00', '2026-06-03 09:00:00');",
+      "INSERT INTO bot_account_bindings (id, bot_platform, bot_user_id, game_platform, player_id, account_key, display_name, is_active, metadata_json, created_at, updated_at) VALUES (9904, 'qq', '10009', '2048verse', 9004, 'test_user', 'test_user', 1, '{}', '2026-06-03 09:00:00', '2026-06-03 09:00:00');"
+    ]
+  },
+  "expected": {
+    "reply": "当前已关闭 bot 提交成绩入口，请改用 Hub 手动录入。"
+  }
+}

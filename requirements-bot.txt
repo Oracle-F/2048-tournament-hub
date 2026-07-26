@@ -2,4 +2,4 @@ nonebot2>=2.4,<3
 nonebot-adapter-onebot>=2.4,<3
 websockets>=12,<16
 python-dotenv>=1,<2
-
+Pillow>=10,<13

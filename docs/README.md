@@ -1,18 +1,20 @@
-# Documentation
+# 文档目录
 
-This folder keeps the public-facing reference material for the project.
+`docs/` 里放项目对外可见、适合公开的参考资料。
 
-## Public files
+## 入口
+
+- [项目主页](../README.md)
+- [开发者指南](developer_guide.md)
+- [测试说明](testing.md)
+- [2026-07 比赛项目计划与统榜设计](比赛项目计划与统榜设计.md)
+
+## 公共文件
 
 - `Stone成绩模板.csv`：示例成绩模板
 - `经典4x4成绩模板.csv`：示例成绩模板
 
-## Start here
+## 说明
 
-- [../README.md](../README.md)
-- [../tests/README.md](../tests/README.md)
-
-## Notes
-
-- Internal incident notes, handoff notes, and private operational guides are intentionally excluded from the public release.
-- If you extend this folder, keep new files public-safe and narrowly scoped.
+- 只保留公开安全、范围清晰的文档与模板。
+- 维护说明和测试规则已经拆到独立文档中，不再放在主页 README。

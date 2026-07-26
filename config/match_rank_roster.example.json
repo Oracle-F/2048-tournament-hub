@@ -1,0 +1,14 @@
+{
+  "required_games": 3,
+  "title": "群星杯 · 2026 4×4 团体赛",
+  "subtitle": "2026.07.27 — 08.24 · 2048 4×4 团体赛",
+  "teams": [
+    {"code": "A", "name": "星河", "players": []},
+    {"code": "B", "name": "长风", "players": []},
+    {"code": "C", "name": "逐光", "players": []},
+    {"code": "D", "name": "破阵", "players": []},
+    {"code": "E", "name": "远航", "players": []},
+    {"code": "F", "name": "凌云", "players": []}
+  ],
+  "individuals": []
+}

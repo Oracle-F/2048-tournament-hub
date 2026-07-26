@@ -3,15 +3,16 @@ import math
 import os
 import re
 import sys
+from datetime import datetime
 from pathlib import Path
 from time import perf_counter
 from urllib.parse import urlparse
 
 import nonebot
-from nonebot import logger, on_message
+from nonebot import logger, on_message, on_metaevent
 from nonebot.adapters.onebot.v11 import Adapter as OneBotV11Adapter
 from nonebot.adapters.onebot.v11 import Bot as OneBotV11Bot
-from nonebot.adapters.onebot.v11 import GroupMessageEvent, Message, MessageEvent, MessageSegment, PrivateMessageEvent
+from nonebot.adapters.onebot.v11 import GroupMessageEvent, HeartbeatMetaEvent, LifecycleMetaEvent, Message, MessageEvent, MessageSegment, MetaEvent, PrivateMessageEvent
 from nonebot.adapters.onebot.v11 import bot as onebot_v11_bot
 from nonebot.adapters.onebot.v11.exception import ActionFailed
 from nonebot.params import EventPlainText
@@ -22,16 +23,19 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
 from db import connect, ensure_parent_dir, initialize_schema
+from services.bot_connection_watchdog import mark_bot_process_started, record_bot_meta_event
 from services.bot_private_service import (
     _append_group_debug,
     _message_handler_error_reply,
+    is_group_command_prefixed,
+    normalize_group_command_text,
     patch_onebot_reply_lookup,
     render_send_timeout_fallback_message,
     is_transport_unstable_error,
     handle_group_message,
     handle_private_message,
 )
-from settings import DATABASE_PATH
+from settings import DATABASE_PATH, LOCAL_TIMEZONE
 
 
 BOT_PLATFORM = os.getenv("BOT_PLATFORM", "qq")
@@ -45,6 +49,7 @@ _SCHEMA_READY = False
 _MESSAGE_SQLITE_LOCK_RETRY_COUNT = 3
 _MESSAGE_SQLITE_LOCK_RETRY_DELAY_SECONDS = 0.35
 _MESSAGE_SLOW_LOG_MS = int(str(os.getenv("BOT_MESSAGE_SLOW_LOG_MS", "1500")).strip() or "1500")
+PRIVATE_DEBUG_LOG_PATH = ROOT_DIR / "data" / "tmp" / "private_debug.log"
 
 
 def _env_flag(name, default=False):
@@ -63,6 +68,21 @@ def _env_positive_float(name, default):
     if not math.isfinite(value) or value <= 0:
         return float(default)
     return value
+
+
+BOT_PRIVATE_DEBUG_LOG_ENABLED = _env_flag("BOT_PRIVATE_DEBUG_LOG_ENABLED", False)
+
+
+def _append_private_debug(message):
+    if not BOT_PRIVATE_DEBUG_LOG_ENABLED:
+        return
+    timestamp = datetime.now(LOCAL_TIMEZONE).strftime("%Y-%m-%d %H:%M:%S")
+    try:
+        PRIVATE_DEBUG_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with PRIVATE_DEBUG_LOG_PATH.open("a", encoding="utf-8") as handle:
+            handle.write("[{}] {}\n".format(timestamp, message))
+    except Exception:
+        pass
 
 
 _MESSAGE_FILE_API_TIMEOUT_SECONDS = _env_positive_float("BOT_MESSAGE_FILE_API_TIMEOUT_SECONDS", 1.5)
@@ -301,6 +321,15 @@ def create_app():
     driver.register_adapter(OneBotV11Adapter)
     patch_onebot_reply_lookup(onebot_v11_bot)
     _ensure_schema_ready()
+    mark_bot_process_started()
+
+    bot_meta_event = on_metaevent(priority=1, block=False)
+
+    @bot_meta_event.handle()
+    async def _handle_meta_event(event: MetaEvent):
+        if not isinstance(event, (LifecycleMetaEvent, HeartbeatMetaEvent)):
+            return
+        record_bot_meta_event(event)
 
     private_message = on_message(priority=10, block=True)
 
@@ -311,6 +340,13 @@ def create_app():
         request_started = perf_counter()
         message_segments = await _build_message_segments(bot, event)
         segment_build_ms = int((perf_counter() - request_started) * 1000)
+        _append_private_debug(
+            "recv private_event user_id={} raw_text={!r} segments={!r}".format(
+                str(event.get_user_id()),
+                text,
+                _segment_debug_summary(message_segments),
+            )
+        )
 
         reply = None
         last_exc = None
@@ -340,6 +376,9 @@ def create_app():
                         has_reply = _has_reply_segment(event)
                         if not at_bot and to_me and (has_at or not has_reply):
                             at_bot = True
+                    if not at_bot and is_group_command_prefixed(text):
+                        at_bot = True
+                        normalized_text = normalize_group_command_text(text)
                     if not at_bot:
                         stripped_text = _strip_text_mention_prefix(bot, event, text)
                         if stripped_text != (text or "").strip():
@@ -392,6 +431,13 @@ def create_app():
                 connection.close()
 
         if reply is None:
+            _append_private_debug(
+                "reply none user_id={} text={!r} elapsed_ms={}".format(
+                    str(event.get_user_id()),
+                    text,
+                    int((perf_counter() - request_started) * 1000),
+                )
+            )
             total_elapsed_ms = int((perf_counter() - request_started) * 1000)
             if total_elapsed_ms >= _MESSAGE_SLOW_LOG_MS:
                 logger.warning(
@@ -403,11 +449,27 @@ def create_app():
             return
         send_started = perf_counter()
         try:
+            _append_private_debug(
+                "send attempt user_id={} private={} reply_len={} text={!r}".format(
+                    str(event.get_user_id()),
+                    True,
+                    len(str(reply or "")),
+                    text,
+                )
+            )
             if isinstance(event, GroupMessageEvent):
                 await private_message.finish(_render_group_reply_message(reply, str(event.get_user_id())))
             else:
                 await private_message.finish(_render_reply_message(reply))
         except ActionFailed as exc:
+            _append_private_debug(
+                "send failed user_id={} private={} unstable={} error={!r}".format(
+                    str(event.get_user_id()),
+                    not isinstance(event, GroupMessageEvent),
+                    is_transport_unstable_error(exc),
+                    str(exc),
+                )
+            )
             if is_transport_unstable_error(exc):
                 logger.warning(
                     f"message reply transport unstable user_id={event.get_user_id()} "

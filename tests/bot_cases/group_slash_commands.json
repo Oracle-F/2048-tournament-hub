@@ -1,0 +1,60 @@
+[
+  {
+    "name": "slash help normalizes into a group command trigger",
+    "description": "验证 /help 会被入口层识别为群命令触发，而不是继续要求 @bot。",
+    "input": {
+      "target": "bot.group_command_prefix",
+      "args": {
+        "message": "/help"
+      }
+    },
+    "expected": {
+      "triggered": true,
+      "normalized_text": "help"
+    }
+  },
+  {
+    "name": "slash signup normalizes into the bare command text",
+    "description": "验证 /报名 会被规整成服务层已有的报名命令文本。",
+    "input": {
+      "target": "bot.group_command_prefix",
+      "args": {
+        "message": "/报名"
+      }
+    },
+    "expected": {
+      "triggered": true,
+      "normalized_text": "报名"
+    }
+  },
+  {
+    "name": "slash verse query normalizes into the query text",
+    "description": "验证 /2x4 会把前缀去掉，让既有 Verse 查询分流继续生效。",
+    "input": {
+      "target": "bot.group_command_prefix",
+      "args": {
+        "message": "/2x4"
+      }
+    },
+    "expected": {
+      "triggered": true,
+      "normalized_text": "2x4"
+    }
+  },
+  {
+    "name": "slash signup path still replies instead of going silent",
+    "description": "验证 /报名 归一化后，群入口至少会返回绑定提示，而不是静默无响应。",
+    "input": {
+      "target": "bot.handle_group_message",
+      "args": {
+        "bot_user_id": "30001",
+        "group_id": "524118799",
+        "text": "报名",
+        "is_at_bot": true
+      }
+    },
+    "expected": {
+      "reply": "你还没有绑定账号。请私聊 bot 发送：绑定 你的verse用户名"
+    }
+  }
+]

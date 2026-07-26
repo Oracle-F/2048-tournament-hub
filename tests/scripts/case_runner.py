@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import asyncio
 import argparse
+import inspect
 import json
 import sys
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -27,11 +30,23 @@ from services.bot_private_service import (
     _load_my_score_event_rows,
     _parse_score_input,
     _message_handler_error_reply,
+    is_group_command_prefixed,
+    normalize_group_command_text,
     patch_onebot_reply_lookup,
     render_send_timeout_fallback_message,
     is_transport_unstable_error,
     handle_group_message,
     handle_private_message,
+)
+from services.bot_connection_watchdog import (
+    mark_bot_process_started,
+    mark_bot_restart_attempt,
+    mark_bot_attention_notice,
+    read_text_tail,
+    record_bot_meta_event,
+    should_attempt_restart,
+    should_show_attention_notice,
+    summarize_bot_connection_state,
 )
 from services.event_admin_service import infer_rating_bucket_code
 from services.registration_service import list_player_registrations
@@ -96,6 +111,62 @@ def run_seed_sql(connection, seed_sql: list[str] | None):
     with transaction(connection):
         for statement in seed_sql:
             connection.execute(statement)
+
+
+def _parse_datetime(value: Any):
+    if value in (None, ""):
+        return None
+    if isinstance(value, datetime):
+        return value
+    text = str(value).strip()
+    if not text:
+        return None
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    return datetime.fromisoformat(text)
+
+
+def _resolve_case_path(path_value: Any) -> Path:
+    path = Path(str(path_value))
+    if path.is_absolute():
+        return path
+    return PROJECT_ROOT / path
+
+
+def _apply_module_overrides(module, overrides: dict[str, Any] | None):
+    applied = []
+    for name, value in (overrides or {}).items():
+        if not hasattr(module, name):
+            continue
+        applied.append((name, getattr(module, name)))
+        setattr(module, name, value)
+    return applied
+
+
+def _restore_module_overrides(module, applied):
+    for name, value in reversed(applied):
+        setattr(module, name, value)
+
+
+def _expand_expected_placeholders(value: Any):
+    placeholders = {
+        "{{PROJECT_ROOT_PATH}}": str(PROJECT_ROOT),
+        "{{PROJECT_ROOT_URI}}": PROJECT_ROOT.as_uri(),
+    }
+    if isinstance(value, str):
+        result = value
+        for placeholder, replacement in placeholders.items():
+            result = result.replace(placeholder, replacement)
+        return result
+    if isinstance(value, list):
+        return [_expand_expected_placeholders(item) for item in value]
+    if isinstance(value, dict):
+        return {key: _expand_expected_placeholders(item) for key, item in value.items()}
+    return value
+
+
+def _safe_json_dumps(value: Any) -> str:
+    return json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2, default=repr)
 
 
 def run_target(connection, case_input: dict[str, Any]):
@@ -262,6 +333,7 @@ def run_target(connection, case_input: dict[str, Any]):
     if target == "bot.handle_private_message":
         force_admin = bool(args.get("force_admin", False))
         old_is_bot_admin = bot_private_module.is_bot_admin
+        overrides = _apply_module_overrides(bot_private_module, args.get("module_overrides"))
         try:
             if force_admin:
                 bot_private_module.is_bot_admin = lambda bot_platform, bot_user_id: True
@@ -276,11 +348,13 @@ def run_target(connection, case_input: dict[str, Any]):
             }
         finally:
             bot_private_module.is_bot_admin = old_is_bot_admin
+            _restore_module_overrides(bot_private_module, overrides)
     if target == "bot.handle_group_message":
         group_id = str(args["group_id"])
         old_enabled = bot_private_module.GROUP_CHAT_ENABLED
         old_whitelist = set(bot_private_module.GROUP_CHAT_WHITELIST)
         old_rate_limit = bot_private_module.GROUP_CHAT_RATE_LIMIT_PER_MINUTE
+        overrides = _apply_module_overrides(bot_private_module, args.get("module_overrides"))
         try:
             bot_private_module.GROUP_CHAT_ENABLED = bool(args.get("group_enabled", True))
             bot_private_module.GROUP_CHAT_WHITELIST = {group_id}
@@ -300,12 +374,196 @@ def run_target(connection, case_input: dict[str, Any]):
             bot_private_module.GROUP_CHAT_ENABLED = old_enabled
             bot_private_module.GROUP_CHAT_WHITELIST = old_whitelist
             bot_private_module.GROUP_CHAT_RATE_LIMIT_PER_MINUTE = old_rate_limit
+            _restore_module_overrides(bot_private_module, overrides)
+    if target == "bot.connection_watchdog_flow":
+        state_path = _resolve_case_path(args["path"])
+        stale_seconds = int(args.get("stale_seconds", 120))
+        startup_grace_seconds = int(args.get("startup_grace_seconds", 90))
+        restart_cooldown_seconds = int(args.get("restart_cooldown_seconds", 300))
+        runtime_log_path = _resolve_case_path(args["runtime_log_path"]) if args.get("runtime_log_path") else None
+        outputs = []
+        for step in args.get("steps", []):
+            when = _parse_datetime(step.get("now"))
+            op = str(step.get("op") or "").strip()
+            if op == "start":
+                state = mark_bot_process_started(state_path, now=when)
+                outputs.append({
+                    "op": op,
+                    "status": state.get("status"),
+                })
+            elif op == "meta":
+                payload = dict(step)
+                payload.pop("op", None)
+                payload.pop("now", None)
+                state = record_bot_meta_event(payload, state_path, now=when)
+                outputs.append({
+                    "op": op,
+                    "status": state.get("status"),
+                    "meta_event_type": state.get("last_meta_event_type"),
+                    "meta_event_sub_type": state.get("last_meta_event_sub_type"),
+                })
+            elif op == "restart":
+                state = mark_bot_restart_attempt(state_path, now=when, reason=step.get("reason"))
+                outputs.append({
+                    "op": op,
+                    "status": state.get("status"),
+                    "restart_count": state.get("restart_count"),
+                    "last_restart_reason": state.get("last_restart_reason"),
+                })
+            elif op == "summary":
+                outputs.append({
+                    "op": op,
+                    "summary": summarize_bot_connection_state(
+                        state_path,
+                        stale_seconds=stale_seconds,
+                        startup_grace_seconds=startup_grace_seconds,
+                        now=when,
+                    ),
+                })
+            elif op == "should_restart":
+                outputs.append({
+                    "op": op,
+                    "decision": should_attempt_restart(
+                        state_path,
+                        stale_seconds=stale_seconds,
+                        startup_grace_seconds=startup_grace_seconds,
+                        restart_cooldown_seconds=restart_cooldown_seconds,
+                        runtime_log_path=runtime_log_path,
+                        now=when,
+                    ),
+                })
+            else:
+                raise ValueError("Unknown watchdog op: {}".format(op))
+        return {"outputs": outputs}
+    if target == "bot.connection_attention_flow":
+        state_path = _resolve_case_path(args["path"])
+        runtime_log_path = _resolve_case_path(args["runtime_log_path"]) if args.get("runtime_log_path") else None
+        stale_seconds = int(args.get("stale_seconds", 120))
+        startup_grace_seconds = int(args.get("startup_grace_seconds", 90))
+        restart_cooldown_seconds = int(args.get("restart_cooldown_seconds", 300))
+        attention_restart_count = int(args.get("attention_restart_count", 2))
+        attention_cooldown_seconds = int(args.get("attention_cooldown_seconds", 900))
+        outputs = []
+        for step in args.get("steps", []):
+            when = _parse_datetime(step.get("now"))
+            op = str(step.get("op") or "").strip()
+            if op == "start":
+                state = mark_bot_process_started(state_path, now=when)
+                outputs.append({
+                    "op": op,
+                    "status": state.get("status"),
+                })
+            elif op == "meta":
+                payload = dict(step)
+                payload.pop("op", None)
+                payload.pop("now", None)
+                state = record_bot_meta_event(payload, state_path, now=when)
+                outputs.append({
+                    "op": op,
+                    "status": state.get("status"),
+                    "meta_event_type": state.get("last_meta_event_type"),
+                    "meta_event_sub_type": state.get("last_meta_event_sub_type"),
+                })
+            elif op == "restart":
+                state = mark_bot_restart_attempt(state_path, now=when, reason=step.get("reason"))
+                outputs.append({
+                    "op": op,
+                    "status": state.get("status"),
+                    "restart_count": state.get("restart_count"),
+                    "last_restart_reason": state.get("last_restart_reason"),
+                })
+            elif op == "notice":
+                state = mark_bot_attention_notice(state_path, now=when, reason=step.get("reason"))
+                outputs.append({
+                    "op": op,
+                    "attention_count": state.get("attention_count"),
+                    "last_attention_reason": state.get("last_attention_reason"),
+                })
+            elif op == "log_write":
+                if runtime_log_path is None:
+                    raise ValueError("log_write requires runtime_log_path in case args")
+                runtime_log_path.parent.mkdir(parents=True, exist_ok=True)
+                runtime_log_path.write_text(str(step.get("text", "")), encoding="utf-8")
+                outputs.append({
+                    "op": op,
+                    "path": str(runtime_log_path),
+                    "line_count": len(runtime_log_path.read_text(encoding="utf-8").splitlines()),
+                })
+            elif op == "summary":
+                outputs.append({
+                    "op": op,
+                    "summary": summarize_bot_connection_state(
+                        state_path,
+                        stale_seconds=stale_seconds,
+                        startup_grace_seconds=startup_grace_seconds,
+                        now=when,
+                    ),
+                })
+            elif op == "should_restart":
+                outputs.append({
+                    "op": op,
+                    "decision": should_attempt_restart(
+                        state_path,
+                        stale_seconds=stale_seconds,
+                        startup_grace_seconds=startup_grace_seconds,
+                        restart_cooldown_seconds=restart_cooldown_seconds,
+                        runtime_log_path=runtime_log_path,
+                        now=when,
+                    ),
+                })
+            elif op == "should_notice":
+                outputs.append({
+                    "op": op,
+                    "decision": should_show_attention_notice(
+                        state_path,
+                        stale_seconds=stale_seconds,
+                        startup_grace_seconds=startup_grace_seconds,
+                        attention_restart_count=attention_restart_count,
+                        attention_cooldown_seconds=attention_cooldown_seconds,
+                        runtime_log_path=runtime_log_path,
+                        now=when,
+                    ),
+                })
+            else:
+                raise ValueError("Unknown attention op: {}".format(op))
+        return {"outputs": outputs}
+    if target == "bot.runtime_log_tail_flow":
+        log_path = _resolve_case_path(args["path"])
+        outputs = []
+        for step in args.get("steps", []):
+            op = str(step.get("op") or "").strip()
+            if op == "write":
+                log_path.parent.mkdir(parents=True, exist_ok=True)
+                log_path.write_text(str(step.get("text", "")), encoding="utf-8")
+                outputs.append({
+                    "op": op,
+                    "path": str(log_path),
+                    "line_count": len(log_path.read_text(encoding="utf-8").splitlines()),
+                })
+            elif op == "tail":
+                outputs.append({
+                    "op": op,
+                    "snapshot": read_text_tail(
+                        log_path,
+                        max_lines=int(step.get("max_lines", 80)),
+                        max_bytes=int(step.get("max_bytes", 65536)),
+                    ),
+                })
+            else:
+                raise ValueError("Unknown runtime log op: {}".format(op))
+        return {"outputs": outputs}
     if target == "bot.group_is_allowed_command":
         return {
             "value": _group_is_allowed_command(
                 args["message"],
                 has_flow=bool(args.get("has_flow", False)),
             )
+        }
+    if target == "bot.group_command_prefix":
+        message = str(args.get("message") or "")
+        return {
+            "triggered": is_group_command_prefixed(message),
+            "normalized_text": normalize_group_command_text(message),
         }
     if target == "bot.group_should_redirect_reply":
         return {
@@ -364,10 +622,13 @@ def run_target(connection, case_input: dict[str, Any]):
         dummy = DummyBotModule()
         dummy._check_reply = lambda *args, **kwargs: "original"
         patched = patch_onebot_reply_lookup(dummy)
+        check_reply_result = dummy._check_reply()
+        if inspect.isawaitable(check_reply_result):
+            check_reply_result = asyncio.run(check_reply_result)
         return {
             "patched": patched,
             "check_reply_name": getattr(dummy._check_reply, "__name__", ""),
-            "check_reply_result": dummy._check_reply(),
+            "check_reply_result": check_reply_result,
         }
     if target == "bot.render_send_timeout_fallback_message":
         return {
@@ -505,7 +766,7 @@ def run_case(connection, case: dict[str, Any], source_path: Path):
     seed_sql = (case.get("input") or {}).get("seed_sql")
     run_seed_sql(connection, seed_sql)
     actual = run_target(connection, case["input"])
-    expected = case["expected"]
+    expected = _expand_expected_placeholders(case["expected"])
     return actual == expected, actual, expected
 
 
@@ -538,8 +799,8 @@ def run_suite(suite: str = "all", pattern: str | None = None, *, emit_case_lines
             failed.append((label, actual, expected))
             if emit_case_lines:
                 print("[FAIL] {}".format(label))
-                print("  actual  : {}".format(json.dumps(actual, ensure_ascii=False, sort_keys=True, indent=2)))
-                print("  expected: {}".format(json.dumps(expected, ensure_ascii=False, sort_keys=True, indent=2)))
+                print("  actual  : {}".format(_safe_json_dumps(actual)))
+                print("  expected: {}".format(_safe_json_dumps(expected)))
 
     return {
         "suite": suite,

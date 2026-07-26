@@ -1,0 +1,16 @@
+{
+  "name": "group help stays silent without @ or slash in the whitelist group",
+  "description": "验证白名单群里直接发送 help 不会再绕过 @/slash 入口，避免 plain 文本在群里主动回响。",
+  "input": {
+    "target": "bot.handle_group_message",
+    "args": {
+      "bot_user_id": "30001",
+      "group_id": "524118799",
+      "text": "help",
+      "is_at_bot": false
+    }
+  },
+  "expected": {
+    "reply": null
+  }
+}

@@ -1,0 +1,379 @@
+[
+  {
+    "name": "plain offline log stays silent before the restart threshold",
+    "description": "验证只有账号状态变更为离线时，不会因为普通离线日志直接弹窗。真正的提醒仍然交给重启阈值和硬告警规则。",
+    "input": {
+      "target": "bot.connection_attention_flow",
+      "args": {
+        "path": "data/tmp/tests/bot_connection_attention_case_plain_offline.json",
+        "runtime_log_path": "data/tmp/tests/napcat_runtime_plain_offline.log",
+        "stale_seconds": 60,
+        "startup_grace_seconds": 30,
+        "restart_cooldown_seconds": 300,
+        "attention_restart_count": 2,
+        "attention_cooldown_seconds": 900,
+        "steps": [
+          {
+            "op": "start",
+            "now": "2026-06-06T10:00:00+08:00"
+          },
+          {
+            "op": "meta",
+            "meta_event_type": "lifecycle",
+            "sub_type": "connect",
+            "self_id": "10001",
+            "now": "2026-06-06T10:00:05+08:00"
+          },
+          {
+            "op": "meta",
+            "meta_event_type": "lifecycle",
+            "sub_type": "disconnect",
+            "self_id": "10001",
+            "now": "2026-06-06T10:00:10+08:00"
+          },
+          {
+            "op": "log_write",
+            "text": "06-07 22:41:49 [info] maomaoBot | 账号状态变更为离线\n"
+          },
+          {
+            "op": "should_notice",
+            "now": "2026-06-06T10:03:00+08:00"
+          }
+        ]
+      }
+    },
+    "expected": {
+      "outputs": [
+        {
+          "op": "start",
+          "status": "starting"
+        },
+        {
+          "op": "meta",
+          "status": "online",
+          "meta_event_type": "lifecycle",
+          "meta_event_sub_type": "connect"
+        },
+        {
+          "op": "meta",
+          "status": "offline",
+          "meta_event_type": "lifecycle",
+          "meta_event_sub_type": "disconnect"
+        },
+        {
+          "op": "log_write",
+          "path": "{{PROJECT_ROOT_PATH}}\\data\\tmp\\tests\\napcat_runtime_plain_offline.log",
+          "line_count": 1
+        },
+        {
+          "op": "should_notice",
+          "decision": {
+            "attention_required": false,
+            "reason": "attention_restart_threshold",
+            "summary": {
+              "present": true,
+              "stale": true,
+              "reason": "stale",
+              "status": "offline",
+              "age_seconds": 170,
+              "boot_age_seconds": 180
+            },
+            "restart_count": 0
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "KickedOffLine runtime log triggers immediate attention",
+    "description": "验证日志里出现 KickedOffLine 时，会直接进入提醒分支，而不会被普通离线状态吞掉。", 
+    "input": {
+      "target": "bot.connection_attention_flow",
+      "args": {
+        "path": "data/tmp/tests/bot_connection_attention_case_kicked_offline.json",
+        "runtime_log_path": "data/tmp/tests/napcat_runtime_kicked_offline.log",
+        "stale_seconds": 60,
+        "startup_grace_seconds": 30,
+        "restart_cooldown_seconds": 300,
+        "attention_restart_count": 2,
+        "attention_cooldown_seconds": 900,
+        "steps": [
+          {
+            "op": "start",
+            "now": "2026-06-06T10:00:00+08:00"
+          },
+          {
+            "op": "meta",
+            "meta_event_type": "lifecycle",
+            "sub_type": "connect",
+            "self_id": "10001",
+            "now": "2026-06-06T10:00:05+08:00"
+          },
+          {
+            "op": "meta",
+            "meta_event_type": "lifecycle",
+            "sub_type": "disconnect",
+            "self_id": "10001",
+            "now": "2026-06-06T10:00:10+08:00"
+          },
+          {
+            "op": "log_write",
+            "text": "06-07 22:41:48 [error] maomaoBot | [KickedOffLine] [下线通知] 你的帐号当前登录已失效，请重新登录。\n06-07 22:41:49 [info] maomaoBot | 账号状态变更为离线\n"
+          },
+          {
+            "op": "should_restart",
+            "now": "2026-06-06T10:03:00+08:00"
+          },
+          {
+            "op": "should_notice",
+            "now": "2026-06-06T10:03:00+08:00"
+          }
+        ]
+      }
+    },
+    "expected": {
+      "outputs": [
+        {
+          "op": "start",
+          "status": "starting"
+        },
+        {
+          "op": "meta",
+          "status": "online",
+          "meta_event_type": "lifecycle",
+          "meta_event_sub_type": "connect"
+        },
+        {
+          "op": "meta",
+          "status": "offline",
+          "meta_event_type": "lifecycle",
+          "meta_event_sub_type": "disconnect"
+        },
+        {
+          "op": "log_write",
+          "path": "{{PROJECT_ROOT_PATH}}\\data\\tmp\\tests\\napcat_runtime_kicked_offline.log",
+          "line_count": 2
+        },
+        {
+          "op": "should_restart",
+          "decision": {
+            "restart_required": false,
+            "reason": "hard_alert",
+            "summary": {
+              "present": true,
+              "stale": true,
+              "reason": "stale",
+              "status": "offline",
+              "age_seconds": 170,
+              "boot_age_seconds": 180
+            },
+            "hard_alert_reason": "kicked_offline",
+            "hard_alert_marker": "KickedOffLine",
+            "hard_alert_line": "06-07 22:41:48 [error] maomaoBot | [KickedOffLine] [下线通知] 你的帐号当前登录已失效，请重新登录。"
+          }
+        },
+        {
+          "op": "should_notice",
+          "decision": {
+            "attention_required": true,
+            "reason": "hard_alert",
+            "summary": {
+              "present": true,
+              "stale": true,
+              "reason": "stale",
+              "status": "offline",
+              "age_seconds": 170,
+              "boot_age_seconds": 180
+            },
+            "hard_alert_reason": "kicked_offline",
+            "hard_alert_marker": "KickedOffLine",
+            "hard_alert_line": "06-07 22:41:48 [error] maomaoBot | [KickedOffLine] [下线通知] 你的帐号当前登录已失效，请重新登录。"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "persistent offline state triggers an attention notice after repeated restarts",
+    "description": "验证 bot 持续不在线时，先走自动重启，重复异常后再进入提醒分支，并且提醒有冷却。",
+    "input": {
+      "target": "bot.connection_attention_flow",
+      "args": {
+        "path": "data/tmp/tests/bot_connection_attention_case1.json",
+        "stale_seconds": 60,
+        "startup_grace_seconds": 30,
+        "restart_cooldown_seconds": 300,
+        "attention_restart_count": 2,
+        "attention_cooldown_seconds": 900,
+        "steps": [
+          {
+            "op": "start",
+            "now": "2026-06-06T10:00:00+08:00"
+          },
+          {
+            "op": "meta",
+            "meta_event_type": "lifecycle",
+            "sub_type": "connect",
+            "self_id": "10001",
+            "now": "2026-06-06T10:00:05+08:00"
+          },
+          {
+            "op": "meta",
+            "meta_event_type": "lifecycle",
+            "sub_type": "disconnect",
+            "self_id": "10001",
+            "now": "2026-06-06T10:00:10+08:00"
+          },
+          {
+            "op": "summary",
+            "now": "2026-06-06T10:03:00+08:00"
+          },
+          {
+            "op": "should_restart",
+            "now": "2026-06-06T10:03:00+08:00"
+          },
+          {
+            "op": "restart",
+            "reason": "stale",
+            "now": "2026-06-06T10:03:10+08:00"
+          },
+          {
+            "op": "should_notice",
+            "now": "2026-06-06T10:03:10+08:00"
+          },
+          {
+            "op": "restart",
+            "reason": "stale",
+            "now": "2026-06-06T10:08:20+08:00"
+          },
+          {
+            "op": "should_notice",
+            "now": "2026-06-06T10:08:30+08:00"
+          },
+          {
+            "op": "notice",
+            "reason": "persistent_offline",
+            "now": "2026-06-06T10:08:40+08:00"
+          },
+          {
+            "op": "should_notice",
+            "now": "2026-06-06T10:10:00+08:00"
+          }
+        ]
+      }
+    },
+    "expected": {
+      "outputs": [
+        {
+          "op": "start",
+          "status": "starting"
+        },
+        {
+          "op": "meta",
+          "status": "online",
+          "meta_event_type": "lifecycle",
+          "meta_event_sub_type": "connect"
+        },
+        {
+          "op": "meta",
+          "status": "offline",
+          "meta_event_type": "lifecycle",
+          "meta_event_sub_type": "disconnect"
+        },
+        {
+          "op": "summary",
+          "summary": {
+            "present": true,
+            "stale": true,
+            "reason": "stale",
+            "status": "offline",
+            "age_seconds": 170,
+            "boot_age_seconds": 180
+          }
+        },
+        {
+          "op": "should_restart",
+          "decision": {
+            "restart_required": true,
+            "reason": "stale",
+            "summary": {
+              "present": true,
+              "stale": true,
+              "reason": "stale",
+              "status": "offline",
+              "age_seconds": 170,
+              "boot_age_seconds": 180
+            }
+          }
+        },
+        {
+          "op": "restart",
+          "status": "restarting",
+          "restart_count": 1,
+          "last_restart_reason": "stale"
+        },
+        {
+          "op": "should_notice",
+          "decision": {
+            "attention_required": false,
+            "reason": "attention_restart_threshold",
+            "summary": {
+              "present": true,
+              "stale": true,
+              "reason": "stale",
+              "status": "restarting",
+              "age_seconds": 180,
+              "boot_age_seconds": 190
+            },
+            "restart_count": 1
+          }
+        },
+        {
+          "op": "restart",
+          "status": "restarting",
+          "restart_count": 2,
+          "last_restart_reason": "stale"
+        },
+        {
+          "op": "should_notice",
+          "decision": {
+            "attention_required": true,
+            "reason": "persistent_offline",
+            "summary": {
+              "present": true,
+              "stale": true,
+              "reason": "stale",
+              "status": "restarting",
+              "age_seconds": 500,
+              "boot_age_seconds": 510
+            },
+            "restart_count": 2
+          }
+        },
+        {
+          "op": "notice",
+          "attention_count": 1,
+          "last_attention_reason": "persistent_offline"
+        },
+        {
+          "op": "should_notice",
+          "decision": {
+            "attention_required": false,
+            "reason": "attention_cooldown",
+            "summary": {
+              "present": true,
+              "stale": true,
+              "reason": "stale",
+              "status": "restarting",
+              "age_seconds": 590,
+              "boot_age_seconds": 600,
+              "attention_age_seconds": 80
+            },
+            "restart_count": 2,
+            "attention_age_seconds": 80
+          }
+        }
+      ]
+    }
+  }
+]

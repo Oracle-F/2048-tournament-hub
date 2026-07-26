@@ -898,7 +898,7 @@ def main():
 
                 if now >= event_info.end_time and not final_export_done:
                     final_export_done = True
-                    print("比赛已结束，最终结果已导出。")
+                    print("比赛已结束，仍持续按输入的比赛时间范围同步；程序不会自动退出。")
                 sleep(CHECK_INTERVAL)
             except KeyboardInterrupt:
                 print("")

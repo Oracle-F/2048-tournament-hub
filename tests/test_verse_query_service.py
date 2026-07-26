@@ -18,14 +18,14 @@ class VerseQueryServicePerformanceTests(TestCase):
         spec = verse._score_focused_spec("24满盘")
 
         self.assertEqual(2882, spec["score_floor"])
-        self.assertEqual(3066, spec["score_ceiling"])
+        self.assertNotIn("score_ceiling", spec)
         self.assertNotIn("full_scan", spec)
 
     def test_24_second_tier_full_board_uses_probability_window(self):
         spec = verse._score_focused_spec("24满盘2")
 
         self.assertEqual(5126, spec["score_floor"])
-        self.assertEqual(5327, spec["score_ceiling"])
+        self.assertNotIn("score_ceiling", spec)
         self.assertNotIn("full_scan", spec)
 
     def test_full_board_probability_windows_follow_normal_model(self):
@@ -45,21 +45,127 @@ class VerseQueryServicePerformanceTests(TestCase):
             with self.subTest(variant_code=variant_code, level=level):
                 self.assertEqual(expected_window, verse._full_board_score_window(variant_code, level))
 
+    def test_full_board_level_requires_filled_board(self):
+        partial_512 = {"board_values": [512], "board_sum": 512, "max_tile": 512}
+        filled_first_tier = {"board_values": [256, 128, 64, 32, 16, 8, 4, 2], "max_tile": 256}
+
+        self.assertEqual(0, verse._count_full_board_level(partial_512, "2x4"))
+        self.assertEqual(1, verse._count_full_board_level(filled_first_tier, "2x4"))
+
     def test_32k_ratio_metrics_use_single_pass_counts(self):
         games = [
+            {"score": 900000, "board_values": [65536], "max_tile": 65536},
+            {"score": 830000, "board_values": [], "max_tile": None},
             {"board_values": [32768], "max_tile": 32768},
             {"board_values": [32768, 16384], "max_tile": 32768},
-            {"board_values": [32768, 16384, 8192, 4096], "max_tile": 32768},
-            {"board_values": [16384, 8192], "max_tile": 16384},
+            {"score": 440000, "board_values": [16384, 8192], "max_tile": 16384},
         ]
 
         metrics = verse._calc_32k_ratio_metrics(games)
 
-        self.assertEqual(3, metrics["count_32k_plus"])
+        self.assertEqual(4, metrics["count_32k_plus"])
         self.assertEqual(2, metrics["numerator"])
         self.assertEqual(3, metrics["denominator"])
         self.assertAlmostEqual(2 / 3, metrics["ratio"])
         self.assertFalse(metrics["eligible"])
+
+    def test_32k_plus_uses_score_only_when_board_is_missing(self):
+        self.assertTrue(
+            verse._is_32k_plus_game(
+                {"score": 830000, "board_values": [], "max_tile": None}
+            )
+        )
+        self.assertFalse(
+            verse._is_32k_plus_game(
+                {"score": 440000, "board_values": [16384, 8192], "max_tile": 16384}
+            )
+        )
+        self.assertTrue(
+            verse._is_32k_plus_game(
+                {"score": 900000, "board_values": [65536], "max_tile": 65536}
+            )
+        )
+
+    def test_score_focused_reached_tile_predicates_cover_merged_tiles_and_missing_boards(self):
+        cases = {
+            "512s": {"score": 9000, "board_values": [1024], "max_tile": 1024},
+            "768s": {"score": 9000, "board_values": [1024], "max_tile": 1024},
+            "1024s": {"score": 20000, "board_values": [2048], "max_tile": 2048},
+            "1536s": {"score": 20000, "board_values": [2048], "max_tile": 2048},
+            "4ks": {"score": 50000, "board_values": [], "max_tile": None},
+            "32ks": {"score": 830000, "board_values": [], "max_tile": None},
+        }
+
+        for token, game in cases.items():
+            with self.subTest(token=token):
+                spec = verse._score_focused_spec(token)
+                self.assertTrue(spec["predicate"](game))
+
+    def test_score_focused_render_uses_same_count_predicates_as_fetch(self):
+        self.assertIn(
+            "512数量 1",
+            verse._render_token_query(
+                None,
+                "512s",
+                "2x4",
+                None,
+                [{"score": 9000, "board_values": [1024], "max_tile": 1024}],
+            ),
+        )
+        self.assertIn(
+            "768数量 1",
+            verse._render_token_query(
+                None,
+                "768s",
+                "2x4",
+                None,
+                [{"score": 9000, "board_values": [1024], "max_tile": 1024}],
+            ),
+        )
+        self.assertIn(
+            "1024数量 1",
+            verse._render_token_query(
+                None,
+                "1024s",
+                "3x3",
+                None,
+                [{"score": 20000, "board_values": [2048], "max_tile": 2048}],
+            ),
+        )
+        self.assertIn(
+            "1536数量 1",
+            verse._render_token_query(
+                None,
+                "1536s",
+                "3x3",
+                None,
+                [{"score": 20000, "board_values": [2048], "max_tile": 2048}],
+            ),
+        )
+        self.assertIn(
+            "32k数量 1",
+            verse._render_token_query(
+                None,
+                "32ks",
+                "4x4",
+                None,
+                [{"score": 830000, "board_values": [], "max_tile": None}],
+            ),
+        )
+
+    def test_32k_ratio_requires_enough_evaluable_boards_not_only_score_inferred_count(self):
+        games = [
+            {"score": 830000 + index, "board_values": [], "max_tile": None}
+            for index in range(12)
+        ] + [
+            {"score": 840000 + index, "board_values": [32768, 16384], "max_tile": 32768}
+            for index in range(5)
+        ]
+
+        reply = verse._render_token_query(None, "32k综率", "4x4", None, games)
+
+        self.assertIn("32k综率暂无", reply)
+        self.assertIn("当前5局", reply)
 
     def test_four_x_four_score_floors_follow_user_thresholds(self):
         expectations = {
@@ -339,6 +445,32 @@ class VerseQueryServicePerformanceTests(TestCase):
 
         self.assertIsNone(result)
 
+    def test_strict_score_focused_query_skips_stale_cache_when_first_page_fails(self):
+        original_fetch_user_page = verse._fetch_user_page
+        original_stale = verse._heavy_query_cache_get_stale
+        original_cache = dict(verse.VERSE_QUERY_HEAVY_QUERY_CACHE)
+        try:
+            verse.VERSE_QUERY_HEAVY_QUERY_CACHE.clear()
+            verse._fetch_user_page = lambda *args, **kwargs: None
+            verse._heavy_query_cache_get_stale = lambda cache_key: self.fail("strict first-page failure should not use stale cache")
+
+            result = verse._load_score_focused_games(
+                "tester",
+                "2x4",
+                predicate=lambda game: verse._count_full_board_level(game, "2x4") >= 1,
+                min_required_tile=512,
+                cache_key_hint="24满盘",
+                score_floor=verse._score_focused_spec("24满盘")["score_floor"],
+                allow_stale_cache=False,
+            )
+        finally:
+            verse._fetch_user_page = original_fetch_user_page
+            verse._heavy_query_cache_get_stale = original_stale
+            verse.VERSE_QUERY_HEAVY_QUERY_CACHE.clear()
+            verse.VERSE_QUERY_HEAVY_QUERY_CACHE.update(original_cache)
+
+        self.assertIsNone(result)
+
     def test_wr_uses_leaderboard_rating_without_profile_lookup(self):
         original_load_rows = verse._load_live_leaderboard_rows
         original_load_profile = verse._load_live_rating_snapshot
@@ -551,6 +683,301 @@ class VerseQueryServicePerformanceTests(TestCase):
             verse.VERSE_QUERY_HEAVY_QUERY_CACHE.update(original_cache)
 
         self.assertEqual([game["id"] for game in games], ["page-2-hit"])
+
+    def test_2x4_mode_summary_uses_targeted_counts_without_full_history_scan(self):
+        original_resolve = verse._resolve_target_player
+        original_rating = verse._load_rating_snapshot
+        original_live_pb = verse._load_live_pb
+        original_score_focused = verse._load_score_focused_games
+        original_load_games = verse._load_games
+        original_reply_cache = dict(verse.VERSE_QUERY_REPLY_CACHE)
+        try:
+            verse.VERSE_QUERY_REPLY_CACHE.clear()
+            verse._resolve_target_player = lambda *args, **kwargs: {
+                "player_id": 1,
+                "username": "tester",
+                "display_name": "Tester",
+            }
+            verse._load_rating_snapshot = lambda *args, **kwargs: {
+                "source": "verse_live",
+                "rating_value": 2402.0,
+                "rank_value": 128,
+                "best_score": 3012,
+            }
+            verse._load_live_pb = lambda *args, **kwargs: self.fail("profile best_score should provide PB")
+
+            def fake_score_focused(username, variant_code, **kwargs):
+                self.assertEqual("tester", username)
+                self.assertEqual("2x4", variant_code)
+                hint = kwargs.get("cache_key_hint")
+                if hint == "512s":
+                    return [{"id": "tile"}]
+                if hint == "24满盘":
+                    return [{"id": "full-1"}, {"id": "full-2"}]
+                self.fail("unexpected score-focused token {}".format(hint))
+
+            verse._load_score_focused_games = fake_score_focused
+            verse._load_games = lambda *args, **kwargs: self.fail("2x4 summary should not scan full game history")
+
+            reply = verse.handle_verse_query_message(
+                object(),
+                bot_platform="qq",
+                bot_user_id="10001",
+                text="2x4",
+            )
+        finally:
+            verse._resolve_target_player = original_resolve
+            verse._load_rating_snapshot = original_rating
+            verse._load_live_pb = original_live_pb
+            verse._load_score_focused_games = original_score_focused
+            verse._load_games = original_load_games
+            verse.VERSE_QUERY_REPLY_CACHE.clear()
+            verse.VERSE_QUERY_REPLY_CACHE.update(original_reply_cache)
+
+        self.assertIn("rating 2402.0 | 排名 #128", reply)
+        self.assertIn("PB 3012", reply)
+        self.assertIn("512数量 1", reply)
+        self.assertIn("满盘数量 2", reply)
+
+    def test_3x4_mode_summary_uses_targeted_count_without_full_history_scan(self):
+        original_resolve = verse._resolve_target_player
+        original_rating = verse._load_rating_snapshot
+        original_live_pb = verse._load_live_pb
+        original_score_focused = verse._load_score_focused_games
+        original_load_games = verse._load_games
+        original_reply_cache = dict(verse.VERSE_QUERY_REPLY_CACHE)
+        try:
+            verse.VERSE_QUERY_REPLY_CACHE.clear()
+            verse._resolve_target_player = lambda *args, **kwargs: {
+                "player_id": 1,
+                "username": "tester34",
+                "display_name": "Tester 34",
+            }
+            verse._load_rating_snapshot = lambda *args, **kwargs: {
+                "source": "verse_live",
+                "rating_value": 2912.0,
+                "rank_value": 1,
+                "best_score": 80516,
+            }
+            verse._load_live_pb = lambda *args, **kwargs: self.fail("profile best_score should provide PB")
+
+            def fake_score_focused(username, variant_code, **kwargs):
+                self.assertEqual("tester34", username)
+                self.assertEqual("3x4", variant_code)
+                self.assertEqual("4ks", kwargs.get("cache_key_hint"))
+                return [{"id": "4k-1"}, {"id": "4k-2"}]
+
+            verse._load_score_focused_games = fake_score_focused
+            verse._load_games = lambda *args, **kwargs: self.fail("3x4 summary should not scan full game history")
+
+            reply = verse.handle_verse_query_message(
+                object(),
+                bot_platform="qq",
+                bot_user_id="10001",
+                text="3x4",
+            )
+        finally:
+            verse._resolve_target_player = original_resolve
+            verse._load_rating_snapshot = original_rating
+            verse._load_live_pb = original_live_pb
+            verse._load_score_focused_games = original_score_focused
+            verse._load_games = original_load_games
+            verse.VERSE_QUERY_REPLY_CACHE.clear()
+            verse.VERSE_QUERY_REPLY_CACHE.update(original_reply_cache)
+
+        self.assertIn("rating 2912.0 | 排名 #1", reply)
+        self.assertIn("PB 80516", reply)
+        self.assertIn("4k数量 2", reply)
+
+    def test_4x4_mode_summary_uses_targeted_metrics_without_full_history_scan(self):
+        original_resolve = verse._resolve_target_player
+        original_rating = verse._load_rating_snapshot
+        original_live_pb = verse._load_live_pb
+        original_score_focused = verse._load_score_focused_games
+        original_month_games = verse._load_month_games
+        original_calc_month = verse._calc_month_rating
+        original_load_games = verse._load_games
+        original_reply_cache = dict(verse.VERSE_QUERY_REPLY_CACHE)
+        try:
+            verse.VERSE_QUERY_REPLY_CACHE.clear()
+            verse._resolve_target_player = lambda *args, **kwargs: {
+                "player_id": 1,
+                "username": "tester44",
+                "display_name": "Tester 44",
+            }
+            verse._load_rating_snapshot = lambda *args, **kwargs: {
+                "source": "verse_live",
+                "rating_value": 3036.0,
+                "rank_value": 2,
+                "best_score": 1144108,
+            }
+            verse._load_live_pb = lambda *args, **kwargs: self.fail("profile best_score should provide PB")
+
+            def fake_score_focused(username, variant_code, **kwargs):
+                self.assertEqual("tester44", username)
+                self.assertEqual("4x4", variant_code)
+                self.assertEqual("32k综率", kwargs.get("cache_key_hint"))
+                return [
+                    {"id": f"chain-{index}", "board_values": [32768, 16384], "max_tile": 32768}
+                    for index in range(5)
+                ] + [
+                    {"id": f"single-{index}", "board_values": [32768], "max_tile": 32768}
+                    for index in range(5)
+                ]
+
+            verse._load_score_focused_games = fake_score_focused
+            verse._load_month_games = lambda username, variant_code: [{"id": "month"}]
+            verse._calc_month_rating = lambda games, variant_code: {
+                "value": 1234.5,
+                "top_count": 1,
+                "month_start": verse.datetime(2026, 5, 1, tzinfo=verse.LOCAL_TIMEZONE),
+            }
+            verse._load_games = lambda *args, **kwargs: self.fail("4x4 summary should not scan full game history")
+
+            reply = verse.handle_verse_query_message(
+                object(),
+                bot_platform="qq",
+                bot_user_id="10001",
+                text="4x4",
+            )
+        finally:
+            verse._resolve_target_player = original_resolve
+            verse._load_rating_snapshot = original_rating
+            verse._load_live_pb = original_live_pb
+            verse._load_score_focused_games = original_score_focused
+            verse._load_month_games = original_month_games
+            verse._calc_month_rating = original_calc_month
+            verse._load_games = original_load_games
+            verse.VERSE_QUERY_REPLY_CACHE.clear()
+            verse.VERSE_QUERY_REPLY_CACHE.update(original_reply_cache)
+
+        self.assertIn("rating 3036.0 | 排名 #2", reply)
+        self.assertIn("PB 1144108", reply)
+        self.assertIn("32k数量 10", reply)
+        self.assertIn("32k综率 50.0000%", reply)
+        self.assertIn("2026-05月rating：1234.5（月局数：1/5）", reply)
+
+    def test_month_rating_display_clamps_negative_value_to_zero(self):
+        month_rating = {
+            "value": -123.4,
+            "top_count": 1,
+            "month_start": verse.datetime(2026, 5, 1, tzinfo=verse.LOCAL_TIMEZONE),
+        }
+
+        reply = verse._render_four_x_four_summary(None, None, None, month_rating)
+
+        self.assertIn("2026-05月rating：0（月局数：1/5）", reply)
+        self.assertNotIn("月rating -", reply)
+        self.assertNotIn("月rating：-", reply)
+
+    def test_mra_query_display_uses_same_month_rating_separator(self):
+        original_calc_month = verse._calc_month_rating
+        try:
+            verse._calc_month_rating = lambda games, variant_code: {
+                "value": -123.4,
+                "top_count": 1,
+                "month_start": verse.datetime(2026, 5, 1, tzinfo=verse.LOCAL_TIMEZONE),
+            }
+
+            reply = verse._render_token_query(None, "44mra", "4x4", None, [])
+        finally:
+            verse._calc_month_rating = original_calc_month
+
+        self.assertEqual("4x4 2026-05月rating：0（月局数：1/5）", reply)
+        self.assertNotIn("月rating -", reply)
+        self.assertNotIn("月rating：-", reply)
+
+    def test_missing_month_rating_display_says_no_data(self):
+        original_calc_month = verse._calc_month_rating
+        try:
+            verse._calc_month_rating = lambda games, variant_code: None
+
+            summary_reply = verse._render_four_x_four_summary(None, None, None, None)
+            mra_reply = verse._render_token_query(None, "44mra", "4x4", None, [])
+        finally:
+            verse._calc_month_rating = original_calc_month
+
+        self.assertIn("上个月月rating：暂无数据", summary_reply)
+        self.assertEqual("4x4 上个月月rating：暂无数据", mra_reply)
+        self.assertNotIn("月rating -", summary_reply)
+        self.assertNotIn("月rating -", mra_reply)
+
+    def test_missing_rating_display_says_no_data(self):
+        self.assertEqual("rating 暂无数据 | 排名 暂无数据", verse._summary_rating_line(None))
+        self.assertEqual(
+            "rating 暂无数据 | 排名 暂无数据",
+            verse._summary_rating_line({"source": "verse_live"}),
+        )
+        self.assertEqual(
+            "本地rating 暂无数据 | 本地排名 暂无数据",
+            verse._summary_rating_line({"source": "local"}),
+        )
+
+    def test_full_board_spec_keeps_higher_tiers_for_at_least_level_count(self):
+        original_fetch_user_page = verse._fetch_user_page
+        original_cache = dict(verse.VERSE_QUERY_HEAVY_QUERY_CACHE)
+        spec = verse._score_focused_spec("24满盘")
+        calls = []
+        try:
+            verse.VERSE_QUERY_HEAVY_QUERY_CACHE.clear()
+
+            def fake_fetch_user_page(username, variant_code, page, *, sort="date", desc=True):
+                calls.append(page)
+                self.assertEqual(sort, "score")
+                self.assertTrue(desc)
+                if page == 1:
+                    return {
+                        "totalGames": 150,
+                        "games": [
+                            {
+                                "id": "higher-tier-hit",
+                                "score": 5200,
+                                "ended_at": "2026-06-03T10:00:00+08:00",
+                                "board": [512, 256, 128, 64, 32, 16, 8, 4],
+                            }
+                        ]
+                        + [
+                            {
+                                "id": f"page-1-miss-{index}",
+                                "score": 5199 - index,
+                                "ended_at": "2026-06-03T10:00:01+08:00",
+                                "board": [1, 1, 1],
+                            }
+                            for index in range(49)
+                        ],
+                    }
+                if page == 2:
+                    return {
+                        "totalGames": 150,
+                        "games": [
+                            {
+                                "id": "first-tier-hit",
+                                "score": 2990,
+                                "ended_at": "2026-06-03T10:01:00+08:00",
+                                "board": [256, 128, 64, 32, 16, 8, 4, 2],
+                            }
+                        ],
+                    }
+                self.fail("score floor should stop before page 3")
+
+            verse._fetch_user_page = fake_fetch_user_page
+            games = verse._load_score_focused_games(
+                "tester",
+                "2x4",
+                predicate=spec["predicate"],
+                min_required_tile=spec["min_required_tile"],
+                cache_key_hint="24满盘",
+                score_floor=spec["score_floor"],
+                score_ceiling=spec.get("score_ceiling"),
+                allow_stale_cache=spec["allow_stale_cache"],
+            )
+        finally:
+            verse._fetch_user_page = original_fetch_user_page
+            verse.VERSE_QUERY_HEAVY_QUERY_CACHE.clear()
+            verse.VERSE_QUERY_HEAVY_QUERY_CACHE.update(original_cache)
+
+        self.assertEqual(["higher-tier-hit", "first-tier-hit"], [game["id"] for game in games])
+        self.assertEqual([1, 2], calls)
 
 
 if __name__ == "__main__":

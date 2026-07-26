@@ -8,7 +8,26 @@ $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 $taskName = "EventScore-QQBot-Autostart"
 
-$python = "C:\Users\oracl\AppData\Local\Programs\Python\Python312\python.exe"
+function Resolve-PythonExecutablePath {
+    $venvPython = Join-Path $root ".venv\Scripts\python.exe"
+    if (Test-Path -LiteralPath $venvPython) {
+        return $venvPython
+    }
+
+    $python = Get-Command "python.exe" -ErrorAction SilentlyContinue
+    if ($python -and $python.Source) {
+        return $python.Source
+    }
+
+    $python = Get-Command "python" -ErrorAction SilentlyContinue
+    if ($python -and $python.Source) {
+        return $python.Source
+    }
+
+    throw "Python executable not found. Install Python or create .venv\\Scripts\\python.exe first."
+}
+
+$python = Resolve-PythonExecutablePath
 
 $scriptPath = Join-Path $root "scripts\run_private_qq_bot.py"
 if (-not (Test-Path -LiteralPath $scriptPath)) {

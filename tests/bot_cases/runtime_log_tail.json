@@ -1,0 +1,78 @@
+[
+  {
+    "name": "runtime log tail keeps the newest lines and marks truncation",
+    "description": "验证日志观察只保留尾部内容，不改变任何连接判定逻辑。",
+    "input": {
+      "target": "bot.runtime_log_tail_flow",
+      "args": {
+        "path": "data/tmp/tests/napcat_runtime_tail_case1.log",
+        "steps": [
+          {
+            "op": "write",
+            "text": "line 1\nline 2\nline 3\nline 4\n"
+          },
+          {
+            "op": "tail",
+            "max_lines": 2,
+            "max_bytes": 1024
+          }
+        ]
+      }
+    },
+    "expected": {
+      "outputs": [
+        {
+          "op": "write",
+          "path": "{{PROJECT_ROOT_PATH}}\\data\\tmp\\tests\\napcat_runtime_tail_case1.log",
+          "line_count": 4
+        },
+        {
+          "op": "tail",
+          "snapshot": {
+            "present": true,
+            "path": "{{PROJECT_ROOT_PATH}}\\data\\tmp\\tests\\napcat_runtime_tail_case1.log",
+            "line_count": 4,
+            "excerpt": [
+              "line 3",
+              "line 4"
+            ],
+            "last_line": "line 4",
+            "truncated": true
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "runtime log tail reports missing files clearly",
+    "description": "验证当 NapCat 日志不存在时，观察层会返回缺失而不是报错。",
+    "input": {
+      "target": "bot.runtime_log_tail_flow",
+      "args": {
+        "path": "data/tmp/tests/napcat_runtime_tail_case2.log",
+        "steps": [
+          {
+            "op": "tail",
+            "max_lines": 5,
+            "max_bytes": 1024
+          }
+        ]
+      }
+    },
+    "expected": {
+      "outputs": [
+        {
+          "op": "tail",
+          "snapshot": {
+            "present": false,
+            "path": "{{PROJECT_ROOT_PATH}}\\data\\tmp\\tests\\napcat_runtime_tail_case2.log",
+            "line_count": 0,
+            "excerpt": [],
+            "last_line": null,
+            "truncated": false
+          }
+        }
+      ]
+    }
+  }
+]

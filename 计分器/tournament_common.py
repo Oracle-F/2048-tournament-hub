@@ -459,7 +459,7 @@ def score_games(username, display_name, variant, games, start_time, end_time):
 
         scored_games.append(
             ScoredGame(
-                game_id=int(game.get("id", 0)),
+                game_id=game.get("id", 0),
                 username=username,
                 display_name=display_name,
                 variant=variant,

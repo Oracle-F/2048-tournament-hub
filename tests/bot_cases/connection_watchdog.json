@@ -1,0 +1,269 @@
+[
+  {
+    "name": "bot connection watchdog stays quiet during startup grace and becomes fresh after heartbeat",
+    "description": "验证 bot 刚启动时不会误触发重启，收到 connect 与 heartbeat 后会被视为在线且 fresh。",
+    "input": {
+      "target": "bot.connection_watchdog_flow",
+      "args": {
+        "path": "data/tmp/tests/bot_connection_watchdog_case1.json",
+        "stale_seconds": 120,
+        "startup_grace_seconds": 90,
+        "restart_cooldown_seconds": 300,
+        "steps": [
+          {
+            "op": "start",
+            "now": "2026-06-06T10:00:00+08:00"
+          },
+          {
+            "op": "summary",
+            "now": "2026-06-06T10:00:20+08:00"
+          },
+          {
+            "op": "meta",
+            "meta_event_type": "lifecycle",
+            "sub_type": "connect",
+            "self_id": "10001",
+            "now": "2026-06-06T10:00:40+08:00"
+          },
+          {
+            "op": "meta",
+            "meta_event_type": "heartbeat",
+            "self_id": "10001",
+            "interval": 30000,
+            "now": "2026-06-06T10:01:00+08:00"
+          },
+          {
+            "op": "summary",
+            "now": "2026-06-06T10:01:40+08:00"
+          },
+          {
+            "op": "should_restart",
+            "now": "2026-06-06T10:01:40+08:00"
+          }
+        ]
+      }
+    },
+    "expected": {
+      "outputs": [
+        {
+          "op": "start",
+          "status": "starting"
+        },
+        {
+          "op": "summary",
+          "summary": {
+            "present": true,
+            "stale": false,
+            "reason": "startup_grace",
+            "status": "starting",
+            "age_seconds": 20,
+            "boot_age_seconds": 20
+          }
+        },
+        {
+          "op": "meta",
+          "status": "online",
+          "meta_event_type": "lifecycle",
+          "meta_event_sub_type": "connect"
+        },
+        {
+          "op": "meta",
+          "status": "online",
+          "meta_event_type": "heartbeat",
+          "meta_event_sub_type": null
+        },
+        {
+          "op": "summary",
+          "summary": {
+            "present": true,
+            "stale": false,
+            "reason": "fresh",
+            "status": "online",
+            "age_seconds": 40,
+            "boot_age_seconds": 100
+          }
+        },
+        {
+          "op": "should_restart",
+          "decision": {
+            "restart_required": false,
+            "reason": "fresh",
+            "summary": {
+              "present": true,
+              "stale": false,
+              "reason": "fresh",
+              "status": "online",
+              "age_seconds": 40,
+              "boot_age_seconds": 100
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "bot connection watchdog restarts once after a real offline state and then enters cooldown",
+    "description": "验证断联后会触发一次重启，随后在冷却期内不会重复重启。",
+    "input": {
+      "target": "bot.connection_watchdog_flow",
+      "args": {
+        "path": "data/tmp/tests/bot_connection_watchdog_case2.json",
+        "stale_seconds": 60,
+        "startup_grace_seconds": 30,
+        "restart_cooldown_seconds": 300,
+        "steps": [
+          {
+            "op": "start",
+            "now": "2026-06-06T10:00:00+08:00"
+          },
+          {
+            "op": "meta",
+            "meta_event_type": "lifecycle",
+            "sub_type": "connect",
+            "self_id": "10001",
+            "now": "2026-06-06T10:00:10+08:00"
+          },
+          {
+            "op": "meta",
+            "meta_event_type": "lifecycle",
+            "sub_type": "disconnect",
+            "self_id": "10001",
+            "now": "2026-06-06T10:00:20+08:00"
+          },
+          {
+            "op": "summary",
+            "now": "2026-06-06T10:03:00+08:00"
+          },
+          {
+            "op": "should_restart",
+            "now": "2026-06-06T10:03:00+08:00"
+          },
+          {
+            "op": "restart",
+            "reason": "stale",
+            "now": "2026-06-06T10:03:10+08:00"
+          },
+          {
+            "op": "should_restart",
+            "now": "2026-06-06T10:04:00+08:00"
+          }
+        ]
+      }
+    },
+    "expected": {
+      "outputs": [
+        {
+          "op": "start",
+          "status": "starting"
+        },
+        {
+          "op": "meta",
+          "status": "online",
+          "meta_event_type": "lifecycle",
+          "meta_event_sub_type": "connect"
+        },
+        {
+          "op": "meta",
+          "status": "offline",
+          "meta_event_type": "lifecycle",
+          "meta_event_sub_type": "disconnect"
+        },
+        {
+          "op": "summary",
+          "summary": {
+            "present": true,
+            "stale": true,
+            "reason": "stale",
+            "status": "offline",
+            "age_seconds": 160,
+            "boot_age_seconds": 180
+          }
+        },
+        {
+          "op": "should_restart",
+          "decision": {
+            "restart_required": true,
+            "reason": "stale",
+            "summary": {
+              "present": true,
+              "stale": true,
+              "reason": "stale",
+              "status": "offline",
+              "age_seconds": 160,
+              "boot_age_seconds": 180
+            }
+          }
+        },
+        {
+          "op": "restart",
+          "status": "restarting",
+          "restart_count": 1,
+          "last_restart_reason": "stale"
+        },
+        {
+          "op": "should_restart",
+          "decision": {
+            "restart_required": false,
+            "reason": "restart_cooldown",
+            "restart_age_seconds": 50,
+            "summary": {
+              "present": true,
+              "stale": true,
+              "reason": "stale",
+              "status": "restarting",
+              "age_seconds": 220,
+              "boot_age_seconds": 240,
+              "restart_age_seconds": 50
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "bot connection watchdog stays quiet while startup grace is active",
+    "description": "验证 bot 还在启动宽限期时，即使没有 heartbeat 也不会误触发重启。",
+    "input": {
+      "target": "bot.connection_watchdog_flow",
+      "args": {
+        "path": "data/tmp/tests/bot_connection_watchdog_case3.json",
+        "stale_seconds": 120,
+        "startup_grace_seconds": 90,
+        "restart_cooldown_seconds": 300,
+        "steps": [
+          {
+            "op": "start",
+            "now": "2026-06-06T10:00:00+08:00"
+          },
+          {
+            "op": "should_restart",
+            "now": "2026-06-06T10:00:30+08:00"
+          }
+        ]
+      }
+    },
+    "expected": {
+      "outputs": [
+        {
+          "op": "start",
+          "status": "starting"
+        },
+        {
+          "op": "should_restart",
+          "decision": {
+            "restart_required": false,
+            "reason": "startup_grace",
+            "summary": {
+              "present": true,
+              "stale": false,
+              "reason": "startup_grace",
+              "status": "starting",
+              "age_seconds": 30,
+              "boot_age_seconds": 30
+            }
+          }
+        }
+      ]
+    }
+  }
+]

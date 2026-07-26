@@ -1,0 +1,16 @@
+{
+  "name": "group help returns the help image when the bot is explicitly mentioned",
+  "description": "验证群里在 @bot 场景下仍然能正常看到帮助图，保留低噪声入口。",
+  "input": {
+    "target": "bot.handle_group_message",
+    "args": {
+      "bot_user_id": "30001",
+      "group_id": "524118799",
+      "text": "help",
+      "is_at_bot": true
+    }
+  },
+  "expected": {
+    "reply": "[CQ:image,file={{PROJECT_ROOT_URI}}/data/bot_help_images/group_help.png]"
+  }
+}

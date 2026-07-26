@@ -6,6 +6,8 @@ __pycache__/
 .venv/
 data/*.sqlite3
 !data/testing.db
+data/*.sqlite3-shm
+data/*.sqlite3-wal
 data/*.log
 data/tmp/
 data/test_dbs/
