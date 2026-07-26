@@ -1,192 +1,111 @@
 # Function specification
 
 ## Data contracts
-- `BotAddress`: `transport`, `conversation_kind`, `conversation_id`, `user_id`; all IDs are opaque strings.
-- `BotAttachment`: `kind`, `name`, `content_type`, optional `url`, optional `local_path`, optional `platform_file_id`.
-- `BotInboundMessage`: address, text, attachments, message ID, event ID, reference ID, mention flag, received time.
-- `BotReply`: text, ordered attachments, optional reference ID; no CQ or SDK objects.
-- `SendReceipt`: transport, target, platform message ID, sent time, status, error code, retryable flag.
-- `StarsCupQuery`: kind `overview|team|player|self`, normalized selector.
-- `DailyRunResult`: run ID, snapshot path/hash, ordered image paths/hashes, per-image delivery receipts.
+- `OfficialRelationshipUpdate`: `event_type`, `subject_kind`, `subject_id`, `status`, `observed_at`; IDs remain opaque in memory.
+- `OfficialTargetState`: schema version, target SHA-256, status `unknown|joined|receivable|rejected|removed`, last event type and timestamp; no raw OpenID.
+- `PlatformReadiness`: `intent_permission`, `application_review`, `target_relationship`, `proactive_messages`, `rich_media`, `real_receipt`; every field is `UNKNOWN|CONFIRMED|DENIED` plus local evidence.
+- Existing `BotInboundMessage`, `BotReply`, `SendReceipt` and `DailyRunResult` contracts remain unchanged.
 
-## normalize_legacy_reply
-Function: `normalize_legacy_reply`
-Purpose: Convert the existing string/CQ return value into `BotReply`.
-Location: `services/bot_transport.py`
-Inputs: Existing reply value returned by `handle_private_message` or `handle_group_message`.
-Outputs: `BotReply` or `None`.
-Called By: Business dispatch wrapper.
-Calls: Path URI parser and contract constructors only.
-Logic: 1. Return `None` for `None`. 2. Convert the value to text. 3. Extract each existing CQ image marker in source order. 4. Convert file URI to an image attachment. 5. Remove only extracted markers from text. 6. Return normalized text plus attachments.
-Errors: Reject malformed file URIs with a non-retryable contract error.
+## official_relationship_event_to_update
+Function: `official_relationship_event_to_update`
+Purpose: Convert one official relationship event into a transport-local state update without invoking business handlers.
+Location: `bot_official_qq/relationship_state.py`
+Inputs: Official event type string, SDK event object and observation time.
+Outputs: `OfficialRelationshipUpdate` or `None` for unsupported events.
+Called By: `OfficialQQEventRunner.handle_relationship`.
+Calls: Attribute readers and local time normalizer only.
+Logic: 1. Accept the six current callbacks: group add/delete/receive/reject and C2C receive/reject. 2. Read `group_openid` for group events or `openid` for C2C events. 3. Reject empty subject IDs. 4. Map group add to `joined`, group receive to `receivable`, group reject to `rejected`, group delete to `removed`, C2C receive to `receivable` and C2C reject to `rejected`. 5. Return the opaque update without logging it.
+Errors: Unsupported events return `None`; supported malformed events raise `BotContractError`.
 Side Effects: None.
-Notes: Temporary compatibility bridge; no new service may emit CQ markers.
+Notes: Initial callback set must include SDK 1.2.1 names `on_group_add_robot`, `on_group_del_robot`, `on_group_msg_reject`, `on_group_msg_receive`, `on_c2c_msg_reject`, `on_c2c_msg_receive`; friend add/delete may be added in a later batch.
 
-## dispatch_business_message
-Function: `dispatch_business_message`
-Purpose: Invoke existing business handlers without exposing transport SDK types.
-Location: `services/bot_transport.py`
-Inputs: SQLite connection and `BotInboundMessage`.
-Outputs: `BotReply` or `None`.
-Called By: OneBot and official QQ inbound adapters.
-Calls: `handle_private_message`, `handle_group_message`, `normalize_legacy_reply`.
-Logic: 1. Map transport to `bot_platform`. 2. Convert attachments to existing neutral segment dictionaries. 3. Route by conversation kind. 4. Pass opaque IDs unchanged. 5. Normalize the returned reply.
-Errors: Propagate business errors; never convert transport errors into business errors.
-Side Effects: Existing business handler side effects only.
-Notes: Preserve existing handler signatures and direct tests.
+## load_official_target_state
+Function: `load_official_target_state`
+Purpose: Read the last durable relationship state for only the configured Stars Cup target group.
+Location: `bot_official_qq/relationship_state.py`
+Inputs: State JSON path and configured target group OpenID.
+Outputs: `OfficialTargetState` with `unknown` as the safe default.
+Called By: Scheduler pre-send gate and offline preflight.
+Calls: SHA-256 helper and JSON reader.
+Logic: 1. Hash the configured target with SHA-256. 2. Return `unknown` when the state file is absent. 3. Validate schema, target hash, status and timestamp. 4. Return the state only when its hash matches the configured target.
+Errors: Corrupt, wrong-target or unsupported-schema state raises a typed non-retryable state error.
+Side Effects: Reads one local JSON file.
+Notes: Never return, persist or log the raw target; the file belongs under `data/tmp/stars_cup_bot/`.
 
-## onebot_event_to_inbound
-Function: `onebot_event_to_inbound`
-Purpose: Convert a OneBot v11 event into `BotInboundMessage`.
-Location: `bot_private_qq/onebot_transport.py`
-Inputs: OneBot bot instance, message event and extracted plain text.
-Outputs: `BotInboundMessage`.
-Called By: `bot_private_qq/app.py`.
-Calls: Existing file hydration and @/reply detection helpers.
-Logic: 1. Classify private/group. 2. Hydrate file segments. 3. derive opaque IDs. 4. Preserve message/reference IDs. 5. Normalize mention text. 6. Build the DTO.
-Errors: File hydration failure retains metadata and omits inaccessible path; event shape errors are non-retryable.
-Side Effects: May call OneBot file lookup APIs.
-Notes: OneBot imports must remain in `bot_private_qq/`.
+## observe_official_relationship_event
+Function: `observe_official_relationship_event`
+Purpose: Persist relationship changes for the configured target and emit a redacted operational record for other relationship events.
+Location: `bot_official_qq/relationship_state.py`
+Inputs: `OfficialRelationshipUpdate`, configured target group OpenID and state JSON path.
+Outputs: `OfficialTargetState` when the update belongs to the configured group, otherwise `None`.
+Called By: `OfficialQQEventRunner.handle_relationship`.
+Calls: Target hashing, state validation and atomic JSON writer.
+Logic: 1. Compare raw IDs only in memory. 2. For the configured group, write schema, target SHA-256, mapped status, event type and timestamp via temp-file replace. 3. For non-target group or C2C events, do not persist a target state. 4. Return enough redacted status for structured logging.
+Errors: File write/replace errors propagate and must not start or stop a send by themselves.
+Side Effects: Atomically updates one target-state JSON file and emits no business/database writes.
+Notes: `rejected` and `removed` are blocking; `unknown`, `joined` and `receivable` are non-blocking because absence of a recent event is not proof of denial.
 
-## send_onebot_reply
-Function: `send_onebot_reply`
-Purpose: Send a `BotReply` through the current OneBot matcher.
-Location: `bot_private_qq/onebot_transport.py`
-Inputs: Matcher, inbound DTO and reply.
-Outputs: `SendReceipt`.
-Called By: `bot_private_qq/app.py`.
-Calls: OneBot message segment constructors and matcher send/finish.
-Logic: 1. Build reference/@ prefix for group replies. 2. Append text when non-empty. 3. Append attachments in order. 4. Send once. 5. Classify timeout, connection and action errors.
-Errors: Return retryability classification; preserve current silent handling for known unstable transport errors.
-Side Effects: Sends one QQ message through NapCat.
-Notes: Current OneBot behavior is the regression oracle.
-
-## parse_stars_cup_query
-Function: `parse_stars_cup_query`
-Purpose: Parse the dedicated group command without colliding with generic Verse syntax.
-Location: `services/stars_cup_bot_service.py`
-Inputs: Raw normalized group text.
-Outputs: `StarsCupQuery` or `None`.
-Called By: `handle_stars_cup_group_query`.
-Calls: String normalization only.
-Logic: 1. Accept only `/群星杯` or full-width slash equivalent. 2. Empty selector means overview. 3. `我` means self. 4. Single A-F letter means team. 5. Any other single selector means player. 6. More than one selector returns a deterministic syntax error.
-Errors: Invalid selector returns a user-facing parse error.
+## official_target_send_allowed
+Function: `official_target_send_allowed`
+Purpose: Prevent proactive delivery after an observed reject or robot removal.
+Location: `bot_official_qq/relationship_state.py`
+Inputs: `OfficialTargetState`.
+Outputs: Boolean and stable reason code.
+Called By: `OfficialStarsCupDailyScheduler.tick`.
+Calls: None.
+Logic: 1. Return false with `relationship_rejected` for `rejected`. 2. Return false with `robot_removed` for `removed`. 3. Return true with `relationship_unknown`/`joined`/`receivable` for the other states. 4. Never convert `unknown` into confirmed permission.
+Errors: Invalid status raises a typed non-retryable state error.
 Side Effects: None.
-Notes: Command matching precedes generic dashboard and Verse matching.
+Notes: Real-send authorization remains an independent process/config gate even when this function returns true.
 
-## load_latest_stars_cup_snapshot
-Function: `load_latest_stars_cup_snapshot`
-Purpose: Load only the last fully validated export.
-Location: `services/stars_cup_bot_service.py`
-Inputs: Latest pointer path and current time.
-Outputs: Validated snapshot plus paths, hash and age metadata.
-Called By: Group query and daily delivery.
-Calls: JSON reader, SHA-256 calculator, `validate_snapshot`.
-Logic: 1. Read pointer. 2. Resolve paths under the configured export root. 3. Verify snapshot and two image files exist. 4. Verify stored hashes. 5. Validate snapshot. 6. Compute age without rejecting old data.
-Errors: Missing/invalid pointer returns a typed unavailable error; hash mismatch returns corruption error.
+## classify_scheduler_exception
+Function: `classify_scheduler_exception`
+Purpose: Stop permanent export/config/artifact failures from retrying forever while preserving bounded retries for transient failures.
+Location: `bot_official_qq/scheduler.py`
+Inputs: Raised exception.
+Outputs: Scheduler status `retryable_failure|terminal_failure` and stable error code.
+Called By: `OfficialStarsCupDailyScheduler.tick`.
+Calls: Exception cause-chain walker.
+Logic: 1. Honor `BotTransportError.retryable`. 2. Treat daily/delivery lock contention as retryable. 3. Treat timeout, connection and OS/network errors anywhere in the cause chain as retryable. 4. Treat contract, relationship-state, configuration, artifact/hash/JSON and validation errors as terminal. 5. Treat unknown exceptions as terminal with `unexpected_exception`.
+Errors: Never raises for an exception object.
 Side Effects: None.
-Notes: Never falls back to a partially written timestamp directory.
+Notes: Classification order is significant; tests must cover wrapped network errors and unknown exceptions.
 
-## build_stars_cup_query_reply
-Function: `build_stars_cup_query_reply`
-Purpose: Render a compact text answer from the immutable snapshot.
-Location: `services/stars_cup_bot_service.py`
-Inputs: Validated snapshot, `StarsCupQuery`, optional bound Verse account.
-Outputs: Plain text.
-Called By: `handle_stars_cup_group_query`.
-Calls: Snapshot lookup helpers only.
-Logic: 1. Resolve self to bound account. 2. Match player case-insensitively against Verse values. 3. Reject ambiguous matches. 4. Select overview/team/player fields. 5. Include data cutoff and stale warning. 6. Never expose rating or non-snapshot identity data.
-Errors: Missing binding, not found and ambiguity return distinct user-facing messages.
+## reconcile_stars_cup_scheduler_state
+Function: `reconcile_stars_cup_scheduler_state`
+Purpose: Derive the current-day scheduler status from durable run and per-image delivery records after process restart.
+Location: `bot_official_qq/scheduler.py`
+Inputs: Local date/time, state root and SHA-256 of configured group target.
+Outputs: `not_started|sent|retryable_failure|terminal_failure|unknown_delivery` plus run ID and retry timestamp when present.
+Called By: First due `OfficialStarsCupDailyScheduler.tick` after construction.
+Calls: Existing JSON state readers and delivery-entry validator.
+Logic: 1. Resolve the current local run ID. 2. If both images are durably `sent`, mark the date complete without export/send. 3. If either image is `unknown` or terminal, mark the date terminal without export/send. 4. If a retryable entry exists, honor its durable next-attempt timestamp or permit one immediate retry when absent. 5. Otherwise continue normal idempotent export/delivery. 6. Reject mismatched target hashes.
+Errors: Corrupt or mismatched state is terminal and produces a redacted operator error.
+Side Effects: Reads run/delivery JSON and updates only in-memory scheduler fields.
+Notes: Existing immutable export reuse and per-image send skipping remain the second defense against duplicates.
+
+## build_platform_readiness_summary
+Function: `build_platform_readiness_summary`
+Purpose: Separate locally verified readiness from platform state that offline code cannot know.
+Location: `bot_official_qq/runtime.py`
+Inputs: Validated runtime config and optional `OfficialTargetState`.
+Outputs: Redacted `PlatformReadiness` mapping.
+Called By: `preflight_official_qq_bot`.
+Calls: Target-state loader and local config predicates.
+Logic: 1. Mark local SDK/intent declaration separately from actual intent permission. 2. Set review, intent permission, proactive permission and real receipt to `UNKNOWN` offline. 3. Report target relationship only from an observed durable event, otherwise `UNKNOWN`. 4. Never elevate `joined` to active-message permission. 5. Include no raw AppID, secret, OpenID or filesystem path.
+Errors: Invalid local target state makes preflight fail with a stable code; absent state is not an error.
 Side Effects: None.
-Notes: No network and no database writes.
+Notes: The word `passed` may describe SDK/artifact checks only, never platform approval.
 
-## handle_stars_cup_group_query
-Function: `handle_stars_cup_group_query`
-Purpose: Integrate dedicated read-only querying with existing group controls.
-Location: `services/bot_private_service.py`
-Inputs: Connection, bot platform/user ID, group ID and normalized text.
-Outputs: Plain string or `None`.
-Called By: `handle_group_message`.
-Calls: Parser, latest snapshot loader, existing binding lookup, reply builder.
-Logic: 1. Parse command. 2. Return `None` when not dedicated. 3. Load binding only for self. 4. Load snapshot. 5. Return compact reply or deterministic unavailable message.
-Errors: Log internal detail; return safe text without path or stack trace.
-Side Effects: Debug logging only.
-Notes: Run after whitelist/mention/limit checks and before the generic binding gate.
-
-## run_stars_cup_daily_export
-Function: `run_stars_cup_daily_export`
-Purpose: Produce one validated immutable daily artifact set.
-Location: `services/stars_cup_daily_service.py`
-Inputs: Run time, roster/cache/background/output paths, worker count and full-refresh flag.
-Outputs: `DailyRunResult` with no delivery receipts.
-Called By: Daily CLI and tests.
-Calls: `query_live_scores`, `export_rank_images`, image verification, hash writer.
-Logic: 1. Derive Asia/Singapore run ID. 2. Acquire single-run lock. 3. Reuse an already successful same run ID. 4. Query into current live cache. 5. Export into a new timestamp directory. 6. Validate JSON and both PNGs. 7. Hash all artifacts. 8. Atomically replace latest pointer. 9. Record export success.
-Errors: Preserve previous cache/latest on query or export failure; return non-zero failure state.
-Side Effects: Verse reads and writes under cache/output/state paths.
-Notes: Never opens the production SQLite database in the default live-source mode.
-
-## deliver_stars_cup_daily_images
-Function: `deliver_stars_cup_daily_images`
-Purpose: Send each validated daily image once through a selected transport.
-Location: `services/stars_cup_daily_service.py`
-Inputs: `DailyRunResult`, transport, group address, delivery state path and dry-run flag.
-Outputs: `DailyRunResult` with per-image receipts.
-Called By: Daily CLI.
-Calls: Latest snapshot loader, transport proactive group send, state writer.
-Logic: 1. Verify artifact hashes again. 2. Load per-run/per-image state. 3. Skip successful images. 4. In dry-run record no success and send nothing. 5. Send total then detail image. 6. Persist each successful receipt atomically before the next image. 7. Stop on non-retryable failure. 8. Return partial state on retryable failure.
-Errors: Reject invalid artifacts and target; classify quota, opt-out, permission, audit and network failures.
-Side Effects: Optional group sends and JSON delivery-state writes.
-Notes: Two image messages consume two active-message units.
-
-## official_event_to_inbound
-Function: `official_event_to_inbound`
-Purpose: Convert official C2C or group @ events into the neutral contract.
-Location: `bot_official_qq/transport.py`
-Inputs: Official SDK event object.
-Outputs: `BotInboundMessage`.
-Called By: Official bot event callbacks.
-Calls: Official attachment extraction and contract constructors.
-Logic: 1. Accept only C2C and group @ message events. 2. Map OpenIDs as opaque IDs. 3. Preserve message/event/reference IDs. 4. Mark group events as mentioned. 5. Convert attachments without downloading them.
-Errors: Unsupported event returns `None`; malformed supported event raises a non-retryable mapping error.
-Side Effects: None.
-Notes: No numeric QQ assumptions.
-
-## send_official_reply
-Function: `send_official_reply`
-Purpose: Send a passive reply through the official QQ API.
-Location: `bot_official_qq/transport.py`
-Inputs: Official client, inbound DTO and `BotReply`.
-Outputs: Ordered `SendReceipt` values.
-Called By: Official bot callbacks.
-Calls: Scene-specific upload and message endpoints.
-Logic: 1. Select C2C/group endpoint. 2. Send text with inbound message ID and next sequence. 3. Upload each attachment in the same scene. 4. Send each as `msg_type=7` with incremented sequence. 5. Include reference only when present. 6. Record every response.
-Errors: Do not retry expired reply, rejected content, opt-out or permission errors; bounded retry only network/5xx/quota responses with server delay.
-Side Effects: Official QQ API calls.
-Notes: Complete before the 60-minute C2C or 5-minute group reply window.
-
-## send_official_proactive_group
-Function: `send_official_proactive_group`
-Purpose: Send one scheduled image without a triggering message.
-Location: `bot_official_qq/transport.py`
-Inputs: Official client, group OpenID and one image attachment.
-Outputs: `SendReceipt`.
-Called By: `deliver_stars_cup_daily_images`.
-Calls: Group upload endpoint and group message endpoint.
-Logic: 1. Validate allowed target. 2. Upload to group scope. 3. Send `msg_type=7` without message/event ID. 4. Persist returned message ID in receipt. 5. Classify response.
-Errors: Opt-out, non-membership, permission, audit and content errors are non-retryable for the run; quota and transient server errors are retryable.
-Side Effects: One proactive QQ group message.
-Notes: Never uses upload-time direct send because that weakens per-image receipt control.
-
-## daily_cli_main
-Function: `main`
-Purpose: Expose one non-daemon invocation for manual and external scheduling.
-Location: `scripts/run_stars_cup_daily.py`
-Inputs: Paths, run time, workers, full refresh, transport, target group, dry-run and send flags.
-Outputs: JSON summary to stdout and process exit code.
-Called By: Operator, test harness or external scheduler.
-Calls: Daily export and optional delivery functions.
-Logic: 1. Default to dry-run and no send. 2. Validate mutually dependent send arguments. 3. Run export. 4. Run delivery only when explicitly enabled. 5. Print paths, hashes and statuses. 6. Return 0 only when requested stages succeed.
-Errors: Print concise stderr error and non-zero code; never print secrets or OpenIDs.
-Side Effects: Delegated export and optional send.
-Notes: Enabling system scheduling remains outside this function.
+## handle_relationship
+Function: `OfficialQQEventRunner.handle_relationship`
+Purpose: Route official relationship callbacks without opening SQLite or invoking business logic.
+Location: `bot_official_qq/runtime.py`
+Inputs: Event type and SDK event object.
+Outputs: Redacted observed status or `None`.
+Called By: Generated `StarsCupOfficialQQClient` lifecycle callbacks.
+Calls: `official_relationship_event_to_update`, `observe_official_relationship_event`.
+Logic: 1. Normalize the event. 2. Update only the configured target state. 3. Log event type, subject kind, target-match boolean and status. 4. Never log raw IDs. 5. Return without touching the normal event runner database path.
+Errors: Log typed mapping/state errors with type and stable code; let callback error policy record unexpected failures.
+Side Effects: Optional target-state JSON update and redacted log.
+Notes: Message-create callbacks continue using short-lived SQLite connections exactly as now.

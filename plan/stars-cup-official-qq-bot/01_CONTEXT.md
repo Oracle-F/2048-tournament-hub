@@ -1,70 +1,68 @@
 # Context
 
 ## Control boundary
-- 当前可直接控制本地源码、测试、Git 本地分支、公开文档和离线导出。
-- 当前不可确认官方应用的 AppID、权限、审核状态、群 OpenID、主动消息开关或部署回调。
-- 未经用户授权不得登录 QQ、发真实消息、修改开放平台、群设置或系统定时任务。
-- Git 本地快照已提交为 `88b7be7`；HTTPS 远端缺少可用凭据，尚未推送。
+- 可直接控制：本地源码、`data/testing.db`、离线测试、公开资料核验、不可变导出、Git 分支与远端同步。
+- 不可直接确认：官方应用审核/权限、真实凭据、群 OpenID、机器人关系状态、主动消息开关、真实频控和部署网络。
+- 未经授权不得登录真实 QQ、发送消息、修改开放平台/群设置、启用服务或写入真实配置。
+- 当前分支 `codex/stars-cup-bot-prep-20260727` 已与远端同步到 `23fd1e7`。
+- 工作树有用户未跟踪文件；不得纳入提交、删除或覆盖。
 
-## Existing modules
-- `bot_private_qq/app.py`: NoneBot 启动、OneBot v11 事件识别、文件补全、CQ 图片渲染和发送。
-- `services/bot_private_service.py`: 私聊/群聊业务、白名单、限流、绑定、查分、流程状态和帮助。
-- `services/verse_query_service.py`: 通用 Verse 查询解析、网络读取和回复缓存。
-- `services/bot_binding_service.py`: 按 `bot_platform + bot_user_id` 保存绑定，支持新增 `qq_official` 而不改表。
-- `event_hub.py`: 群星杯名单、Verse 增量缓存、完整性保护和榜图导出。
-- `services/match_rank_image_service.py`: 快照校验、Top3/队伍计算和两张 1920×1080 PNG 渲染。
-- `scripts/export_match_rank_images.py`: 通用快照或数据库导出入口。
-- `services/bot_connection_watchdog.py`: NapCat/OneBot 专用运维，不复用于官方适配器。
+## Implemented architecture
+- `services/bot_transport.py`: 中立 DTO、业务分发、旧 CQ 图片归一化。
+- `bot_private_qq/onebot_transport.py`: OneBot 事件/消息段与中立契约互转。
+- `bot_private_qq/app.py`: 保留 NoneBot、NapCat lifecycle 和 OneBot 入口。
+- `bot_official_qq/transport.py`: 官方 C2C/群 @ 映射、被动回复、主动群图和回执分类。
+- `bot_official_qq/sdk_facade.py`: 隔离 `qq-botpy` 公开 API 与 2026 分片路由差异。
+- `bot_official_qq/media_upload.py`: 本地文件 prepare/PUT/finish/merge，大小/hash/分片校验。
+- `bot_official_qq/runtime.py`: 双开关、沙箱默认、短 SQLite 连接、WebSocket callback、离线 preflight。
+- `bot_official_qq/scheduler.py`: gateway ready 后启动的进程内日榜调度器。
+- `services/stars_cup_bot_service.py`: latest 快照查分，无网络、无数据库写。
+- `services/stars_cup_daily_service.py`: 暂存缓存、不可变 run、原子 latest、逐图投递状态。
+- `services/bot_private_service.py`: 复用旧绑定、报名、查分、预约、回放和管理员权限业务。
 
-## Current call relationships
-- OneBot event → `bot_private_qq/app.py` → `handle_private_message` 或 `handle_group_message` → service → string/CQ reply → OneBot send。
-- 群星杯抓取 → `event_hub.query_live_scores` → Verse → `data/tmp/annual_4x4_2026_live_cache.json`。
-- 群星杯导出 → `event_hub.export_rank_images` → `build_snapshot_from_roster_records` → `render_match_rank_images`。
-- 渲染输出 → 时间戳目录内 `总榜.png`、`六队明细.png`、`榜图数据.json`。
+## Current data flow
+1. OneBot 或官方事件被各自 adapter 转为 `BotInboundMessage`。
+2. `dispatch_business_message` 调用现有私聊/群聊 handler。
+3. 旧 string/CQ 回复转为 `BotReply`，再由对应 transport 发送。
+4. 群星杯查询只读 `data/tmp/stars_cup_bot/latest_export.json` 指向的完整 run。
+5. 日榜调度在 worker thread 查询/导出，异步逐图发送并原子写 delivery JSON。
+6. OneBot 数字 ID 与官方 OpenID 以不同 `bot_platform` 命名空间保存，不做推断或迁移。
 
 ## Official capability matrix
-| Existing behavior | Official support | Required adaptation |
-|---|---|---|
-| 私聊文字 | Supported by `/v2/users/{user_openid}/messages` | Numeric QQ ID becomes opaque user OpenID |
-| 群内 @ 文字 | Supported by `GROUP_AT_MESSAGE_CREATE` | Requires special `GROUP_AND_C2C_EVENT` intent |
-| 主动群消息 | Supported | Respect opt-out, 20/qpm/group and 1000/day |
-| 被动群回复 | Supported for 5 minutes, 5 replies/message | Preserve `msg_id` and increment `msg_seq` |
-| 私聊回复 | Supported for 60 minutes, 4 replies/message | Preserve `msg_id` and increment `msg_seq` |
-| 引用消息 | Supported through `message_reference.message_id` | Do not model as OneBot reply segment |
-| 图片/文件收发 | Supported through attachments and `msg_type=7` | Upload per C2C/group scope; `file_info` has TTL |
-| 事件接收 | Webhook and WebSocket supported | First adapter uses WebSocket; no public callback required |
-| 消息审核结果 | `MESSAGE_AUDIT` exists | Log result; never retry rejected content unchanged |
+| Existing behavior | Official capability | Project adaptation |
+| --- | --- | --- |
+| C2C 私聊 | `C2C_MESSAGE_CREATE`；被动窗口 60 分钟/4 次 | opaque `user_openid`、保留 `msg_id`/`msg_seq` |
+| 群内命令 | `GROUP_AT_MESSAGE_CREATE`；被动窗口 5 分钟/5 次 | opaque `group_openid`、仅 @ 事件、沿用群门禁 |
+| 主动群榜图 | 群主动消息；已验证机器人 60 qpm、单关系 20 qpm、1000/日/群；未验证 30 qpm | 两图两次发送、逐图回执、退避和终止分类 |
+| 图片/文件 | scene-specific 上传后以 `msg_type=7` 发送；`file_info` 有时效 | C2C/群分别上传，本地文件走分片 facade |
+| 引用/多回复 | `message_reference`、同一 `msg_id` 配不同 `msg_seq` | DTO 保存 reference，序号单调递增 |
+| 事件订阅 | WebSocket 或 Webhook；`GROUP_AND_C2C_EVENT=1<<25` | 当前 WebSocket + `public_messages=True` |
+| 关系变化 | 加/退群、接受/拒收主动消息、加/删好友 | 当前尚未接 callback；下个离线批次补齐目标状态 |
+| 审核/权限 | 特殊 intent 需平台授权；未授权可导致连接关闭 | preflight 只能验本地配置，平台项一律 `UNKNOWN` |
 
 Official sources:
 - https://bot.q.qq.com/wiki/develop/api-v2/server-inter/message/overview.html
 - https://bot.q.qq.com/wiki/develop/api-v2/dev-prepare/interface-framework/event-emit.html
-- https://bot.q.qq.com/wiki/develop/api-v2/autogen/api/v2_users_user_openid_messages.post.html
-- https://bot.q.qq.com/wiki/develop/api-v2/autogen/api/v2_groups_group_openid_messages.post.html
-- https://bot.q.qq.com/wiki/develop/api-v2/server-inter/message/rich-media.html
-- https://bot.q.qq.com/wiki/develop/api-v2/dev-prepare/interface-framework/api-use.html
+- https://bot.q.qq.com/wiki/develop/pythonsdk/
+- https://github.com/tencent-connect/botpy
+- https://github.com/tencent-connect/botpy/releases/tag/v1.2.1
 
-## OneBot/NapCat coupling
-- Entry: `OneBotV11Adapter`, OneBot event classes, matcher lifecycle and `ActionFailed` are imported in `bot_private_qq/app.py`.
-- Input model: `event.get_user_id`, `event.group_id`, OneBot message segments and file lookup APIs are read directly.
-- Addressing: numeric QQ/group IDs and current whitelist semantics are assumed.
-- Output model: service help images return `[CQ:image,file=...]`; app parses CQ and builds OneBot `MessageSegment`.
-- Reply semantics: @ detection, reply segment checks and `to_me` fallback are OneBot-specific.
-- Error handling: OneBot timeout/connection messages and reply lookup monkey patch live in business service/app.
-- Operations: heartbeat, lifecycle, NapCat log watcher, Windows startup and QR login recovery are OneBot-only.
+## OneBot/NapCat coupling retained for rollback
+- `bot_private_qq/app.py`: `OneBotV11Adapter`、matcher、event classes、`ActionFailed`、启动/关闭 hooks。
+- `bot_private_qq/onebot_transport.py`: numeric IDs、message segments、file lookup、reply/@ 语义。
+- `services/bot_private_service.py`: `patch_onebot_reply_lookup`、CQ 帮助图和 OneBot timeout fallback。
+- `.env.bot.example` 与运维代码：OneBot token、NapCat 日志、watchdog、Windows alert/task。
+- 以上不得进入官方 adapter；canary 验收前不清理。
 
-## Dependencies
-- Existing runtime: `nonebot2`, `nonebot-adapter-onebot`, `websockets`, `python-dotenv`, `Pillow`.
-- Official reference SDK: Tencent `tencent-connect/botpy`; add only when official adapter phase begins.
-- Daily single-run task uses existing Python standard library, `event_hub.py` and Pillow; no scheduler package.
-- Scheduler remains external to application code; enabling it is an authorized deployment step.
+## Verified local baseline
+- 12 项基础测试通过；Bot 47/47；快速全量 `TOTAL PASS`。
+- 全量 unittest 185 项通过；`pip check` 通过。
+- 实际安装 `qq-botpy==1.2.1` 的离线 preflight 已用当前 snapshot/两图通过。
+- 官方路由已有群星杯、帮助图、绑定/解绑、报名/取消、预约、看板、Verse、成绩门禁、管理员、回放流程夹具。
 
-## Database impact
-- No schema or migration.
-- Existing `bot_account_bindings` can store official users with `bot_platform=qq_official`.
-- OpenID cannot be inferred from old numeric QQ IDs; official users must bind again with the existing PIN flow.
-- Daily run/delivery state is JSON under `data/tmp/stars_cup_bot/`, not SQLite.
-
-## Test baseline
-- Basic unittest group: 12/12.
-- Fast project suite: `TOTAL PASS`.
-- Bot cases: 43/47; four failures are expected Windows path strings versus Fedora separators.
+## Remaining offline gaps
+- 六类 `public_messages` 关系事件未接入；SDK 1.2.1 群事件字段为 `group_openid`，C2C 为 `openid`。
+- 调度器捕获任意异常后均按 retryable 处理，配置/产物永久错误可能无限重试。
+- `_completed_date`/retry deadline 只在内存；delivery JSON 可防重发，但启动 reconciliation 未显式报告。
+- preflight 尚未逐项输出平台权限、关系、主动消息与审核为 `UNKNOWN`。
+- 低风险只读命令和分页已有业务覆盖，但缺少明确的官方 C2C 端到端夹具。

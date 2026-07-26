@@ -1,60 +1,75 @@
 # Official QQ compatibility status
 
-This file distinguishes three different claims:
+Evidence levels:
 
-1. **Business covered**: the existing handler has a deterministic regression
-   test.
-2. **Official route covered**: an official C2C/group event reaches that
-   business handler and a fake official API receives the reply.
-3. **Real restored**: the behavior has passed an authorized QQ sandbox or
-   allowlisted-group canary.
+1. **Business covered**: existing handler/service has deterministic regression evidence.
+2. **Official route covered**: SDK-shaped event reaches real business code and fake official API.
+3. **Real restored**: authorized QQ sandbox/allowlisted-group canary succeeded.
 
-Only the third state means a legacy feature is restored in real QQ.  No row is
-marked real-restored before that evidence exists.
+No offline result can satisfy level 3.
 
-| Capability | Business evidence | Official-route evidence | Current status | Remaining gate |
+| Capability | Business evidence | Official-route evidence | Status | Remaining gate |
 | --- | --- | --- | --- | --- |
-| 群星杯总榜、队伍、玩家、我的查分 | `test_stars_cup_bot_service` | real snapshot group event in `test_official_qq_app` | Offline complete | one authorized group @ canary |
-| 每日生成两张榜图 | `test_stars_cup_daily_service` and fast suite | scheduler/preflight tests | Offline complete | authorized Verse schedule and visual check |
-| 每日主动发送两张榜图 | idempotent delivery-state tests | official proactive media and scheduler tests | Offline complete | one allowlisted-group proactive canary, then three scheduled runs |
-| 私聊帮助文字/图片 | Bot cases and help-image tests | official C2C help image test | Offline complete | one authorized C2C canary |
-| 私聊绑定、解绑 | binding guardrail Bot cases | full official C2C bind/PIN/unbind fixture | Offline complete | real OpenID creates a separate `qq_official` binding; bind/unbind canary |
-| Verse 公共查分 | Verse service and Bot cases | official C2C dispatch with offline service response | Offline complete | authorized C2C response and live Verse latency check |
-| 报名、取消报名 | existing business regression cases | full official C2C registration/cancellation fixture | Offline complete | authorized future test-event canary |
-| 限时预约、查看、取消 | timed-reservation service | full official C2C reservation/view/cancellation fixture | Offline complete | authorized future test-event canary |
-| 个人看板 | personal-dashboard Bot cases | official C2C edit plus allowlisted group query fixture | Offline complete | authorized C2C edit plus allowlisted group query canary |
-| 成绩提交 | flow-toggle and business tests | disabled gate plus explicitly enabled pending-submission fixture | Offline complete and disabled by default | explicit decision to enable, then isolated test-event canary |
-| `floor` / `finish` 回放上传 | business flow tests plus bounded URL materialization tests | full bound-session official event fixture through early/final prefix approval | Offline complete | authorized small-file canary |
-| 管理员命令 | existing admin business gates | official denial plus injected-authorized read-only help fixture | Offline complete | add approved official OpenID to private admin config and run read-only canary |
-| 普通群命令 | group gates/rate-limit Bot cases | official group event and reply tests | Partial | approved group OpenID, whitelist and group @ canary |
-| 回复、引用、图片和文件发送 | neutral and official transport tests | `msg_id`, `msg_seq`, reference and upload tests | Offline complete | real platform receipt/audit evidence |
-| NapCat/OneBot watchdog | OneBot-specific tests | intentionally none | Retained only for rollback | never reuse for official runtime |
+| 群星杯总榜/队伍/玩家/我的查分 | snapshot service tests | real snapshot group-event fixture | Offline complete | authorized group-@ canary |
+| 每日生成两张榜图 | daily service + fast suite | scheduler/preflight artifacts | Offline complete | approved roster/time and live Verse window |
+| 每日主动发送两图 | delivery idempotency tests | proactive media + scheduler tests | Offline complete | relationship state work, then two-image canary and three scheduled days |
+| C2C 帮助文字/图片 | Bot/help tests | official help-image fixture | Offline complete | authorized C2C canary |
+| 绑定/解绑 | binding guardrails | full official PIN flow | Offline complete | real `qq_official` identity canary |
+| Verse 公共查分 | service/Bot cases | official C2C service fixture | Offline complete | live latency/response canary |
+| 报名/取消报名 | business cases | full official fixture | Offline complete | isolated test-event canary |
+| 限时预约/查看/取消 | service tests | full official fixture | Offline complete | isolated test-event canary |
+| 个人看板编辑/群查 | Bot cases | official C2C + group fixture | Offline complete | C2C/group canary |
+| 成绩提交 | toggle/business tests | disabled gate + enabled fixture | Offline complete, disabled | explicit enablement decision |
+| `floor`/`finish` 回放 | flow/download tests | complete official attachment fixture | Offline complete | authorized small-file canary |
+| 管理员命令 | admin gate tests | denial + injected read-only help fixture | Offline complete | approved official OpenID and read-only canary |
+| `赛事` | existing business cases | generic dispatch only | Partial | dedicated official C2C fixture |
+| `我的报名` | existing business cases | generic dispatch only | Partial | bound official C2C fixture |
+| `我的成绩` + `更多` | business pagination cases | generic mapping only | Partial | multi-event official C2C fixture |
+| `我的档案` | existing business cases | generic dispatch only | Partial | bound official C2C fixture |
+| 关系事件 | none required in business | intent subscribes but callbacks absent | Missing | map/persist six events and gate proactive sends |
+| 回复/引用/图片/文件 | neutral contracts | msg_id/msg_seq/reference/upload tests | Offline complete | real receipt/audit evidence |
+| NapCat/OneBot watchdog | OneBot tests | intentionally none | Retained rollback | never share with official runtime |
 
-## Offline safety now enforced
+## Official ability mapping
 
-- Official runtime needs both `OFFICIAL_QQ_BOT_ENABLED=true` and `--start`.
-- Production additionally needs
-  `OFFICIAL_QQ_BOT_PRODUCTION_CONFIRMED=true`; sandbox is the default.
-- The daily scheduler has its own disabled-by-default switch and group target.
-- `--preflight` constructs and closes the real SDK Client, validates the
-  `1<<25` intent and API facade, and optionally validates the current Stars Cup
-  snapshot and both image hashes without login or network.
-- Remote inbound attachments use a 25 MiB default cap, write to a unique
-  partial file, and become visible only after a successful atomic replace.
-- OneBot remains installed and no OneBot lifecycle/watchdog code is shared
-  with the official runtime.
+| Official area | Verified first-party rule | Current handling |
+| --- | --- | --- |
+| Event transport | WebSocket and Webhook are supported | WebSocket runtime implemented; no webhook deployment |
+| Intent | C2C/group messages and relationship events use `GROUP_AND_C2C_EVENT (1<<25)`; special intent needs permission | local value verified; actual grant `UNKNOWN` |
+| Passive C2C | trigger window 60 minutes, up to 4 replies | reply context and part limit enforced offline |
+| Passive group | trigger window 5 minutes, up to 5 replies | reply context and part limit enforced offline |
+| Proactive group | verified bot 60 qpm, one relationship 20 qpm, 1000/day/group; unverified bot 30 qpm | two-image workflow is well below limits; real tier/permission `UNKNOWN` |
+| Duplicate replies | same `msg_id` may be reused with distinct `msg_seq` | ordered text/attachment sequence implemented |
+| Rich media | upload in exact C2C/group scene, then send `msg_type=7`; `file_info` expires | URL/public upload and local chunk flow implemented offline |
+| Opt-out/relationship | user/group can reject proactive messages; add/remove/receive/reject events are emitted | response errors classified; lifecycle callbacks still missing |
+| Review/deployment | platform review/permission and a continuously connected runtime are external | no platform/deployment mutation performed |
 
-## Next offline batch
+First-party sources:
+- [QQ message overview](https://bot.q.qq.com/wiki/develop/api-v2/server-inter/message/overview.html)
+- [QQ event subscriptions](https://bot.q.qq.com/wiki/develop/api-v2/dev-prepare/interface-framework/event-emit.html)
+- [Tencent Python SDK guide](https://bot.q.qq.com/wiki/develop/pythonsdk/)
+- [Tencent botpy repository](https://github.com/tencent-connect/botpy)
+- [qq-botpy v1.2.1 release](https://github.com/tencent-connect/botpy/releases/tag/v1.2.1)
 
-Add official-event fixtures for remaining low-risk read-only views such as
-event lists, personal records and score-history pagination.  Keep score
-submission disabled by default and use only temporary test data.
+## Offline safety enforced
+- Official runtime requires enabled config plus explicit `--start`; production adds a second confirmation flag.
+- Daily scheduling has a separate disabled-by-default flag and target.
+- SDK preflight creates/closes the real client but never calls `run`.
+- Snapshot and both image hashes can be checked without login/network.
+- Local inbound files are bounded and atomically published.
+- OneBot entrypoint/lifecycle remains independent and runnable.
+
+## Known evidence gaps
+- Current preflight says local checks passed but does not enumerate external platform items as `UNKNOWN`.
+- Relationship events are subscribed by intent but not handled by client callbacks.
+- Escaped scheduler exceptions are all retryable; permanent failures can loop.
+- Scheduler process memory is not explicitly reconciled from durable delivery state on startup.
+- Four low-risk read-only views lack dedicated official C2C end-to-end fixtures.
 
 ## Real validation order
-
-1. Sandbox/allowlisted group @ `/群星杯` passive text only.
-2. C2C help and bind/unbind against a disposable test identity.
-3. One proactive total-rank image, then one detail image.
-4. Enable the daily scheduler only after both media receipts are confirmed.
-5. Observe three scheduled deliveries while OneBot remains the rollback path.
-6. Restore the remaining partial rows one tested batch at a time.
+1. Group-@ `/群星杯` passive text with schedule disabled.
+2. C2C help and bind/unbind using a disposable test identity.
+3. One proactive total image, inspect receipt/audit, then one detail image.
+4. Enable scheduler only after relationship and media evidence are confirmed.
+5. Observe three daily deliveries with OneBot kept available.
+6. Restore remaining partial rows in small tested batches.

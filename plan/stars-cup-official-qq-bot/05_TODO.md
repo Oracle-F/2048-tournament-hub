@@ -1,34 +1,51 @@
 # Ordered implementation checklist
 
-- [x] Normalize the four Fedora/Windows expected path assertions without changing production paths.
-- [x] Run the 12 basic tests, Bot cases and `tests/run_all.py --fast`; record the clean baseline.
-- [x] Add transport DTOs, protocol errors and `normalize_legacy_reply` in `services/bot_transport.py`.
-- [x] Add unit tests for text, multiple CQ images, malformed URI, empty reply and opaque IDs.
-- [x] Move OneBot event/send conversion into `bot_private_qq/onebot_transport.py`.
-- [x] Route `bot_private_qq/app.py` through `dispatch_business_message` while preserving startup/watchdog hooks.
-- [x] Run all existing Bot cases and targeted startup/help/flow/group tests.
-- [x] Add `services/stars_cup_bot_service.py` with parser, latest loader and deterministic text renderers.
-- [x] Add dedicated command routing to `handle_group_message` before generic binding checks.
-- [x] Add snapshot fixtures and tests for overview, A-F team, player, self, stale, missing, corrupt and ambiguous data.
-- [x] Add `services/stars_cup_daily_service.py` with lock, immutable run state, validation and atomic latest pointer.
-- [x] Add `scripts/run_stars_cup_daily.py` with export-only dry-run as the default.
-- [x] Add tests for repeat runs, partial query failure, corrupt PNG, pointer preservation and concurrent lock rejection.
-- [x] Add fake transport delivery tests for two successes, first success/second retry, terminal rejection and unknown receipt.
-- [x] Run a local dry-run against the formal roster and inspect both PNGs without sending.
-- [x] Add disabled official QQ environment keys to `.env.bot.example`; do not populate values.
-- [x] Verify the current stable release of Tencent `qq-botpy`, then pin it in the separate `requirements-official-qq.txt`.
-- [x] Add the guarded official WebSocket event adapter and fake-client contract tests for C2C/group @.
-- [x] Add official passive text/media reply tests for reply windows, `msg_seq`, references and upload scope.
-- [x] Add official proactive group image tests for quota, opt-out, non-membership, permission and audit errors.
-- [x] Re-run basic, Bot, fast, transport and daily suites sequentially after the guarded runtime changes.
-- [x] Document manual dry-run, manual export, delivery-state inspection and OneBot rollback commands.
-- [x] Add a real-SDK offline preflight for intent, facade and latest artifact validation.
-- [x] Bound remote inbound attachment downloads and atomically publish complete files.
-- [x] Record command-by-command official compatibility evidence in `06_COMPATIBILITY.md`.
-- [ ] Request only the external values listed as `UNKNOWN` after all offline tests pass.
-- [ ] With explicit authorization, perform one official sandbox/allowlisted-group passive text canary.
-- [ ] With explicit authorization, perform one two-image proactive canary and verify receipts/audit outcome.
-- [ ] Keep OneBot enabled until the群星杯 query and three scheduled deliveries pass without regression.
-- [ ] Migrate remaining legacy commands in small tested batches; remove no OneBot code in this project phase.
-- [x] Add a full official-event `floor` / `finish` fixture with temporary storage before its real canary.
-- [x] Add official-event fixtures for bind/unbind, registration/cancellation, timed reservation, dashboard, Verse dispatch, score gate and authorized admin help.
+## Completed and verified
+- [x] Normalize Fedora/Windows path expectations and reach Bot 47/47.
+- [x] Add neutral transport DTOs and preserve `services/bot_private_service.py`.
+- [x] Route OneBot through its adapter while retaining NoneBot/NapCat process behavior.
+- [x] Add snapshot-backed 群星杯 overview/team/player/self group query.
+- [x] Add immutable daily export, staged cache, atomic latest and per-image delivery state.
+- [x] Add official C2C/group event adapter, passive text/media reply and proactive group image send.
+- [x] Pin Tencent `qq-botpy==1.2.1` separately and isolate SDK route differences.
+- [x] Add 2026 local-file chunk upload and guarded WebSocket runtime.
+- [x] Add ready-gated in-process daily scheduler and offline SDK/artifact preflight.
+- [x] Add official-route fixtures for help, bind, registration, reservation, dashboard, Verse, score gate, admin and replay flows.
+- [x] Pass 12 basic tests, Bot 47/47, full unittest 185, fast suite, `pip check` and real-SDK offline preflight.
+- [x] Push implementation baseline `23fd1e7` to `origin/codex/stars-cup-bot-prep-20260727`.
+
+## Next implementation batch — execute strictly in order
+- [ ] 1. Add failing scheduler tests for permanent, transient, wrapped-network and unknown exceptions.
+- [ ] 2. Implement `classify_scheduler_exception` only; replace catch-all retry behavior and rerun scheduler tests.
+- [ ] 3. Add pure relationship-event mapping tests using SDK 1.2.1 field names.
+- [ ] 4. Implement `relationship_state.py` with atomic, hashed target state and no runtime wiring.
+- [ ] 5. Add runtime callback tests for the six relationship events; prove no SQLite/business dispatch and no raw ID leakage.
+- [ ] 6. Wire callbacks and expose relationship state in preflight while leaving platform capabilities `UNKNOWN`.
+- [ ] 7. Add scheduler gate tests for rejected/removed, joined/receivable and unknown states.
+- [ ] 8. Wire the target-state gate before export/send.
+- [ ] 9. Add restart fixtures for both-images-sent, partial sent, retryable, terminal, unknown, corrupt and wrong-target delivery state.
+- [ ] 10. Implement durable scheduler reconciliation without changing delivery JSON schema unless tests prove necessary.
+- [ ] 11. Add official C2C end-to-end fixtures for `赛事`, `我的报名`, `我的成绩`, `我的档案` and `更多`.
+- [ ] 12. Update `.env.bot.example`/`docs/README.md` only for actual new state/report behavior.
+- [ ] 13. Run focused official tests, 12 basic, Bot 47/47, full unittest and fast suite sequentially.
+- [ ] 14. Inspect diff, commit only allowed files and push the feature branch.
+
+## First minimum change
+- Files: `tests/test_official_qq_scheduler.py`, then `bot_official_qq/scheduler.py`.
+- Change: add and implement the pure `classify_scheduler_exception` helper; do not touch runtime, transport, business services or data.
+- Proof: existing four scheduler tests plus new classification tests all pass; full worktree diff contains only those two files.
+- Rollback: revert that isolated commit; no state/schema/config migration exists.
+
+## External authorization gate
+- [ ] User confirms official application, permissions, review status, test identity/group and allowed time window.
+- [ ] Inspect platform settings or record them as user-supplied evidence; do not infer from preflight.
+- [ ] Run one passive group-@ text canary with scheduler disabled.
+- [ ] Run one C2C help/bind canary.
+- [ ] Run one total-image proactive canary, then one detail-image canary.
+- [ ] Enable the scheduler only after both image receipts/audit outcomes are confirmed.
+- [ ] Observe three scheduled deliveries while OneBot remains active as rollback.
+
+## Later cleanup gate
+- [ ] Restore remaining partial legacy rows in small batches.
+- [ ] Decide whether score submission may be enabled for an isolated test event.
+- [ ] Remove no CQ/OneBot compatibility code until official canaries are accepted and the user starts a separate cleanup phase.
