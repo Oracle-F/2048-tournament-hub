@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib.util
 import io
 import sys
 from pathlib import Path
@@ -9,10 +10,22 @@ from unittest.mock import patch
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
+PROJECT_ROOT_TEXT = str(PROJECT_ROOT)
+if PROJECT_ROOT_TEXT in sys.path:
+    sys.path.remove(PROJECT_ROOT_TEXT)
+sys.path.insert(0, PROJECT_ROOT_TEXT)
 
-from scripts.run_official_qq_bot import main as runtime_main  # noqa: E402
+ENTRYPOINT_PATH = PROJECT_ROOT / "scripts" / "run_official_qq_bot.py"
+ENTRYPOINT_SPEC = importlib.util.spec_from_file_location(
+    "official_qq_entrypoint_under_test",
+    ENTRYPOINT_PATH,
+)
+if ENTRYPOINT_SPEC is None or ENTRYPOINT_SPEC.loader is None:
+    raise RuntimeError("Unable to load official QQ entrypoint")
+entrypoint = importlib.util.module_from_spec(ENTRYPOINT_SPEC)
+sys.modules[ENTRYPOINT_SPEC.name] = entrypoint
+ENTRYPOINT_SPEC.loader.exec_module(entrypoint)
+runtime_main = entrypoint.main
 
 
 class OfficialQQEntrypointTests(TestCase):
@@ -33,8 +46,9 @@ class OfficialQQEntrypointTests(TestCase):
                 "os.environ",
                 self._environment(database),
                 clear=True,
-            ), patch(
-                "scripts.run_official_qq_bot.run_official_qq_bot"
+            ), patch.object(
+                entrypoint,
+                "run_official_qq_bot",
             ) as run, patch("sys.stdout", output):
                 result = runtime_main([])
         self.assertEqual(result, 0)
@@ -52,8 +66,9 @@ class OfficialQQEntrypointTests(TestCase):
                 "os.environ",
                 self._environment(database),
                 clear=True,
-            ), patch(
-                "scripts.run_official_qq_bot.run_official_qq_bot"
+            ), patch.object(
+                entrypoint,
+                "run_official_qq_bot",
             ) as run:
                 result = runtime_main(["--start"])
         self.assertEqual(result, 0)
@@ -64,13 +79,41 @@ class OfficialQQEntrypointTests(TestCase):
 
     def test_disabled_start_exits_before_runtime_call(self):
         error = io.StringIO()
-        with patch.dict("os.environ", {}, clear=True), patch(
-            "scripts.run_official_qq_bot.run_official_qq_bot"
+        with patch.dict("os.environ", {}, clear=True), patch.object(
+            entrypoint,
+            "run_official_qq_bot",
         ) as run, patch("sys.stderr", error):
             result = runtime_main(["--start"])
         self.assertEqual(result, 2)
         run.assert_not_called()
         self.assertIn('"network_started": false', error.getvalue())
+
+    def test_preflight_delegates_without_starting_runtime(self):
+        with TemporaryDirectory() as temp_dir:
+            database = Path(temp_dir) / "bot.sqlite3"
+            database.touch()
+            output = io.StringIO()
+            with patch.dict(
+                "os.environ",
+                self._environment(database),
+                clear=True,
+            ), patch.object(
+                entrypoint,
+                "preflight_official_qq_bot",
+                return_value={
+                    "network_started": False,
+                    "sdk": {"client_constructed": True},
+                },
+            ) as preflight, patch.object(
+                entrypoint,
+                "run_official_qq_bot",
+            ) as run, patch("sys.stdout", output):
+                result = runtime_main(["--preflight"])
+
+        self.assertEqual(result, 0)
+        preflight.assert_called_once()
+        run.assert_not_called()
+        self.assertIn('"status": "preflight_passed"', output.getvalue())
 
 
 if __name__ == "__main__":

@@ -65,7 +65,9 @@
   tests.test_official_qq_media_upload \
   tests.test_official_qq_sdk_facade \
   tests.test_official_qq_runtime \
-  tests.test_official_qq_scheduler
+  tests.test_official_qq_scheduler \
+  tests.test_official_qq_entrypoint \
+  tests.test_bot_attachment_service
 ```
 
 查看单次每日任务参数：
@@ -91,6 +93,14 @@
 
 ```bash
 ./.venv/bin/python scripts/run_official_qq_bot.py --check-config
+```
+
+安装 SDK 后可执行更强的离线 preflight；它会构造并关闭真实 Client、核对
+Intent 和 API facade。若群星杯定时开关已打开，还会重新验证 latest
+快照与两张榜图哈希，但仍不登录或联网：
+
+```bash
+./.venv/bin/python scripts/run_official_qq_bot.py --preflight
 ```
 
 只有获得授权后才执行真实入口：

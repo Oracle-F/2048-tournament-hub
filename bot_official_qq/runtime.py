@@ -8,6 +8,7 @@ call :func:`run_official_qq_bot` before qq-botpy can connect.
 from __future__ import annotations
 
 import asyncio
+import importlib.metadata
 import logging
 import os
 from dataclasses import dataclass
@@ -22,6 +23,10 @@ from bot_official_qq.scheduler import OfficialStarsCupDailyScheduler
 from bot_official_qq.sdk_facade import Botpy2026ApiFacade
 from bot_official_qq.transport import OfficialEventDeduplicator, OfficialQQTransport
 from db import connect
+from services.stars_cup_bot_service import (
+    StarsCupSnapshotUnavailable,
+    load_latest_stars_cup_snapshot,
+)
 from settings import DATABASE_PATH
 
 
@@ -421,6 +426,96 @@ def create_botpy_client(
         is_sandbox=config.sandbox,
         ext_handlers=False,
     )
+
+
+def _botpy_version(botpy: Any) -> str:
+    value = str(getattr(botpy, "__version__", "") or "").strip()
+    if value:
+        return value
+    try:
+        return importlib.metadata.version("qq-botpy")
+    except importlib.metadata.PackageNotFoundError:
+        return "unknown"
+
+
+def preflight_official_qq_bot(
+    config: OfficialRuntimeConfig,
+    *,
+    botpy_module: ModuleType | Any | None = None,
+    snapshot_loader=load_latest_stars_cup_snapshot,
+) -> dict[str, Any]:
+    """Validate the installed SDK and optional Stars Cup artifacts offline."""
+
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        pass
+    else:
+        raise OfficialRuntimeConfigError(
+            "官方 QQ 离线 preflight 不能在已运行的 asyncio loop 内执行",
+            code="preflight_loop_active",
+        )
+    botpy = botpy_module or _load_botpy()
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    client = None
+    try:
+        try:
+            client = create_botpy_client(
+                config,
+                botpy_module=botpy,
+            )
+            Botpy2026ApiFacade(client.api)
+        except OfficialRuntimeConfigError:
+            raise
+        except Exception as exc:
+            raise OfficialRuntimeConfigError(
+                "qq-botpy 离线兼容性检查失败: {}".format(
+                    type(exc).__name__
+                ),
+                code="sdk_preflight_failed",
+            ) from exc
+        summary: dict[str, Any] = {
+            "network_started": False,
+            "config": config.safe_summary(),
+            "sdk": {
+                "package": "qq-botpy",
+                "version": _botpy_version(botpy),
+                "client_constructed": True,
+                "api_facade_compatible": True,
+                "intent": int(
+                    getattr(client.intents, "value", client.intents)
+                ),
+            },
+            "stars_cup_snapshot": {
+                "checked": False,
+            },
+        }
+        if config.stars_cup_schedule_enabled:
+            try:
+                loaded = snapshot_loader()
+            except StarsCupSnapshotUnavailable as exc:
+                raise OfficialRuntimeConfigError(
+                    "群星杯 latest 产物校验失败: {}".format(exc.reason),
+                    code="stars_cup_snapshot_invalid",
+                ) from exc
+            summary["stars_cup_snapshot"] = {
+                "checked": True,
+                "run_id": loaded.run_id,
+                "published_at": loaded.published_at.isoformat(),
+                "stale": loaded.stale,
+                "snapshot_hash_verified": True,
+                "image_hashes_verified": {
+                    "total": True,
+                    "detail": True,
+                },
+            }
+        return summary
+    finally:
+        if client is not None:
+            loop.run_until_complete(client.close())
+        asyncio.set_event_loop(None)
+        loop.close()
 
 
 def run_official_qq_bot(

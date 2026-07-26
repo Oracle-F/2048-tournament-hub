@@ -22,8 +22,13 @@
 - [x] Add official proactive group image tests for quota, opt-out, non-membership, permission and audit errors.
 - [x] Re-run basic, Bot, fast, transport and daily suites sequentially after the guarded runtime changes.
 - [x] Document manual dry-run, manual export, delivery-state inspection and OneBot rollback commands.
+- [x] Add a real-SDK offline preflight for intent, facade and latest artifact validation.
+- [x] Bound remote inbound attachment downloads and atomically publish complete files.
+- [x] Record command-by-command official compatibility evidence in `06_COMPATIBILITY.md`.
 - [ ] Request only the external values listed as `UNKNOWN` after all offline tests pass.
 - [ ] With explicit authorization, perform one official sandbox/allowlisted-group passive text canary.
 - [ ] With explicit authorization, perform one two-image proactive canary and verify receipts/audit outcome.
 - [ ] Keep OneBot enabled until the群星杯 query and three scheduled deliveries pass without regression.
 - [ ] Migrate remaining legacy commands in small tested batches; remove no OneBot code in this project phase.
+- [x] Add a full official-event `floor` / `finish` fixture with temporary storage before its real canary.
+- [x] Add official-event fixtures for bind/unbind, registration/cancellation, timed reservation, dashboard, Verse dispatch, score gate and authorized admin help.

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import sys
-from datetime import time
+from datetime import datetime, time
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
@@ -21,8 +21,10 @@ from bot_official_qq.runtime import (  # noqa: E402
     OfficialRuntimeConfig,
     OfficialRuntimeConfigError,
     create_botpy_client,
+    preflight_official_qq_bot,
     run_official_qq_bot,
 )
+from settings import LOCAL_TIMEZONE  # noqa: E402
 
 
 class FakeIntents:
@@ -51,7 +53,11 @@ class FakeClient:
         self.timeout = timeout
         self.is_sandbox = is_sandbox
         self.ext_handlers = ext_handlers
-        self.api = object()
+        self.api = SimpleNamespace(
+            _http=SimpleNamespace(request=AsyncMock()),
+            post_group_message=AsyncMock(),
+            post_c2c_message=AsyncMock(),
+        )
         self.run_calls = []
         self.closed = False
 
@@ -304,6 +310,55 @@ class OfficialRuntimeClientTests(IsolatedAsyncioTestCase):
             client.run_calls,
             [{"appid": config.app_id, "secret": config.app_secret}],
         )
+
+
+class OfficialRuntimePreflightTests(TestCase):
+    def test_preflight_constructs_sdk_without_run_or_network(self):
+        with TemporaryDirectory() as temp_dir:
+            database = Path(temp_dir) / "bot.sqlite3"
+            database.touch()
+            summary = preflight_official_qq_bot(
+                _config(database),
+                botpy_module=FAKE_BOTPY,
+            )
+
+        self.assertFalse(summary["network_started"])
+        self.assertTrue(summary["sdk"]["client_constructed"])
+        self.assertTrue(summary["sdk"]["api_facade_compatible"])
+        self.assertEqual(summary["sdk"]["intent"], 1 << 25)
+        self.assertFalse(summary["stars_cup_snapshot"]["checked"])
+
+    def test_schedule_preflight_checks_snapshot_without_exposing_paths(self):
+        with TemporaryDirectory() as temp_dir:
+            database = Path(temp_dir) / "bot.sqlite3"
+            database.touch()
+            loaded = SimpleNamespace(
+                run_id="20260727",
+                published_at=datetime(
+                    2026,
+                    7,
+                    27,
+                    9,
+                    0,
+                    tzinfo=LOCAL_TIMEZONE,
+                ),
+                stale=False,
+            )
+            summary = preflight_official_qq_bot(
+                _config(
+                    database,
+                    stars_cup_schedule_enabled=True,
+                    stars_cup_group_openid="opaque-private-group",
+                ),
+                botpy_module=FAKE_BOTPY,
+                snapshot_loader=Mock(return_value=loaded),
+            )
+
+        snapshot = summary["stars_cup_snapshot"]
+        self.assertTrue(snapshot["checked"])
+        self.assertEqual(snapshot["run_id"], "20260727")
+        self.assertNotIn("path", str(snapshot).lower())
+        self.assertNotIn("opaque-private-group", str(summary))
 
 
 if __name__ == "__main__":

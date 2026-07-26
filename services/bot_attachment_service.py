@@ -3,8 +3,26 @@ import shutil
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 from urllib.request import url2pathname, urlopen
+from uuid import uuid4
 
 from settings import BOT_UPLOAD_TEMP_DIR
+
+
+DEFAULT_DOWNLOAD_MAX_BYTES = 25 * 1024 * 1024
+
+
+def _download_max_bytes():
+    raw = str(
+        os.getenv(
+            "BOT_ATTACHMENT_DOWNLOAD_MAX_BYTES",
+            DEFAULT_DOWNLOAD_MAX_BYTES,
+        )
+    ).strip()
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        return DEFAULT_DOWNLOAD_MAX_BYTES
+    return value if value > 0 else DEFAULT_DOWNLOAD_MAX_BYTES
 
 
 def _sanitize_filename(name, fallback="upload.bin"):
@@ -69,17 +87,54 @@ def _copy_existing_local_file(local_value):
 def _download_to_temp(url, filename_hint=None):
     BOT_UPLOAD_TEMP_DIR.mkdir(parents=True, exist_ok=True)
     parsed = urlparse(url)
+    if parsed.scheme not in {"http", "https"}:
+        raise ValueError(
+            "Unsupported file url scheme: {}".format(
+                parsed.scheme or "(empty)"
+            )
+        )
     filename = filename_hint or Path(parsed.path).name or "upload.bin"
-    target = BOT_UPLOAD_TEMP_DIR / _sanitize_filename(filename)
-    if target.exists():
-        stem = target.stem
-        suffix = target.suffix
-        counter = 1
-        while target.exists():
-            target = BOT_UPLOAD_TEMP_DIR / f"{stem}_{counter}{suffix}"
-            counter += 1
-    with urlopen(url, timeout=20) as response, target.open("wb") as handle:
-        shutil.copyfileobj(response, handle)
+    sanitized = Path(_sanitize_filename(filename))
+    target = BOT_UPLOAD_TEMP_DIR / "{}_{}{}".format(
+        sanitized.stem,
+        uuid4().hex[:12],
+        sanitized.suffix,
+    )
+    partial = BOT_UPLOAD_TEMP_DIR / (
+        ".{}.{}.part".format(target.name, uuid4().hex)
+    )
+    maximum = _download_max_bytes()
+    try:
+        with urlopen(url, timeout=20) as response:
+            content_length = None
+            headers = getattr(response, "headers", None)
+            if headers is not None:
+                content_length = headers.get("Content-Length")
+            if content_length not in (None, ""):
+                try:
+                    declared_size = int(content_length)
+                except (TypeError, ValueError):
+                    declared_size = None
+                if declared_size is not None and declared_size > maximum:
+                    raise ValueError(
+                        "Uploaded file exceeds download limit"
+                    )
+            total = 0
+            with partial.open("xb") as handle:
+                while True:
+                    block = response.read(1024 * 1024)
+                    if not block:
+                        break
+                    total += len(block)
+                    if total > maximum:
+                        raise ValueError(
+                            "Uploaded file exceeds download limit"
+                        )
+                    handle.write(block)
+        partial.replace(target)
+    finally:
+        if partial.exists():
+            partial.unlink()
     return target.resolve()
 
 

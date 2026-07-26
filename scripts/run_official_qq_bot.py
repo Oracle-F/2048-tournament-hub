@@ -22,6 +22,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from bot_official_qq.runtime import (  # noqa: E402
     OfficialRuntimeConfig,
     OfficialRuntimeConfigError,
+    preflight_official_qq_bot,
     run_official_qq_bot,
 )
 
@@ -30,19 +31,23 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="校验或显式启动官方 QQ Bot（默认只校验，不联网）"
     )
-    parser.add_argument(
+    action = parser.add_mutually_exclusive_group()
+    action.add_argument(
         "--start",
         action="store_true",
         help="显式启动 WebSocket；没有此参数绝不登录或联网",
     )
-    parser.add_argument(
+    action.add_argument(
         "--check-config",
         action="store_true",
         help="显式执行默认的只读配置检查（不导入 SDK、不联网）",
     )
+    action.add_argument(
+        "--preflight",
+        action="store_true",
+        help="离线构造 SDK 并校验群星杯产物；不登录、不联网",
+    )
     args = parser.parse_args(argv)
-    if args.start and args.check_config:
-        parser.error("--start 与 --check-config 不能同时使用")
     try:
         config = OfficialRuntimeConfig.from_environment()
     except OfficialRuntimeConfigError as exc:
@@ -59,6 +64,34 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 2
+    if args.preflight:
+        try:
+            summary = preflight_official_qq_bot(config)
+        except OfficialRuntimeConfigError as exc:
+            print(
+                json.dumps(
+                    {
+                        "status": "blocked",
+                        "code": exc.code,
+                        "error": str(exc),
+                        "network_started": False,
+                    },
+                    ensure_ascii=False,
+                ),
+                file=sys.stderr,
+            )
+            return 2
+        print(
+            json.dumps(
+                {
+                    "status": "preflight_passed",
+                    **summary,
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+        return 0
     if not args.start:
         print(
             json.dumps(
