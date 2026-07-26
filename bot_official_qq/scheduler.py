@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import asyncio
 import errno
+import hashlib
+import json
 import logging
 from dataclasses import dataclass
 from datetime import datetime, time, timedelta
@@ -16,6 +18,12 @@ from pathlib import Path
 from typing import Any, Awaitable, Callable, Literal
 from urllib.error import HTTPError, URLError
 
+from bot_official_qq.relationship_state import (
+    DEFAULT_OFFICIAL_TARGET_STATE_PATH,
+    OfficialRelationshipStateError,
+    load_official_target_state,
+    official_target_send_allowed,
+)
 from services.bot_transport import (
     BotContractError,
     BotTransport,
@@ -44,6 +52,12 @@ SchedulerStatus = Literal[
 ]
 ExportFunction = Callable[..., DailyRunResult]
 DeliveryFunction = Callable[..., Awaitable[DailyRunResult]]
+ReconciliationStatus = Literal[
+    "not_started",
+    "sent",
+    "retryable_failure",
+    "terminal_failure",
+]
 _TRANSIENT_HTTP_STATUS_CODES = frozenset(
     {408, 425, 429, *range(500, 600)}
 )
@@ -69,6 +83,19 @@ class SchedulerTickResult:
     error_code: str | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class SchedulerReconciliation:
+    status: ReconciliationStatus
+    run_id: str
+    error_code: str | None = None
+
+
+class StarsCupSchedulerStateError(RuntimeError):
+    def __init__(self, message: str, *, code: str):
+        super().__init__(message)
+        self.code = code
+
+
 def _local_time(value: datetime | None) -> datetime:
     current = value or datetime.now(LOCAL_TIMEZONE)
     if current.tzinfo is None:
@@ -85,6 +112,117 @@ def _exception_chain(exc: Exception) -> tuple[BaseException, ...]:
         values.append(current)
         current = current.__cause__ or current.__context__
     return tuple(values)
+
+
+def _target_hash(target: str) -> str:
+    return hashlib.sha256(target.encode("utf-8")).hexdigest()
+
+
+def reconcile_stars_cup_scheduler_state(
+    current: datetime,
+    *,
+    state_root: Path,
+    group_openid: str,
+) -> SchedulerReconciliation:
+    run_id = _local_time(current).strftime("%Y%m%d")
+    delivery_path = (
+        Path(state_root) / "deliveries" / "{}.json".format(run_id)
+    )
+    try:
+        payload = json.loads(delivery_path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return SchedulerReconciliation(
+            status="not_started",
+            run_id=run_id,
+        )
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise StarsCupSchedulerStateError(
+            "Stars Cup delivery state is unreadable",
+            code="scheduler_state_invalid",
+        ) from exc
+    if not isinstance(payload, dict):
+        raise StarsCupSchedulerStateError(
+            "Stars Cup delivery state must be an object",
+            code="scheduler_state_invalid",
+        )
+    if (
+        payload.get("schema_version") != 1
+        or payload.get("run_id") != run_id
+        or payload.get("target_hash") != _target_hash(group_openid)
+        or payload.get("transport") != "qq_official"
+    ):
+        raise StarsCupSchedulerStateError(
+            "Stars Cup delivery state identity is invalid",
+            code="scheduler_state_invalid",
+        )
+    images = payload.get("images")
+    if not isinstance(images, dict):
+        raise StarsCupSchedulerStateError(
+            "Stars Cup delivery images state is invalid",
+            code="scheduler_state_invalid",
+        )
+    statuses: dict[str, str] = {}
+    error_codes: dict[str, str | None] = {}
+    valid_statuses = {
+        "pending",
+        "sending",
+        "sent",
+        "failed_retryable",
+        "failed_terminal",
+        "unknown",
+    }
+    for kind in ("total", "detail"):
+        entry = images.get(kind)
+        if entry is None:
+            continue
+        if not isinstance(entry, dict):
+            raise StarsCupSchedulerStateError(
+                "Stars Cup delivery image entry is invalid",
+                code="scheduler_state_invalid",
+            )
+        status = str(entry.get("status") or "").strip()
+        if status not in valid_statuses:
+            raise StarsCupSchedulerStateError(
+                "Stars Cup delivery image status is invalid",
+                code="scheduler_state_invalid",
+            )
+        statuses[kind] = status
+        error_value = entry.get("error_code")
+        error_codes[kind] = (
+            str(error_value).strip() or None
+            if error_value is not None
+            else None
+        )
+    if any(status in {"unknown", "sending"} for status in statuses.values()):
+        return SchedulerReconciliation(
+            status="terminal_failure",
+            run_id=run_id,
+            error_code="delivery_unknown",
+        )
+    for kind in ("total", "detail"):
+        if statuses.get(kind) == "failed_terminal":
+            return SchedulerReconciliation(
+                status="terminal_failure",
+                run_id=run_id,
+                error_code=error_codes.get(kind) or "delivery_terminal",
+            )
+    for kind in ("total", "detail"):
+        if statuses.get(kind) == "failed_retryable":
+            return SchedulerReconciliation(
+                status="retryable_failure",
+                run_id=run_id,
+                error_code=error_codes.get(kind) or "delivery_retryable",
+            )
+    if statuses == {"total": "sent", "detail": "sent"}:
+        return SchedulerReconciliation(
+            status="sent",
+            run_id=run_id,
+            error_code="reconciled_sent",
+        )
+    return SchedulerReconciliation(
+        status="not_started",
+        run_id=run_id,
+    )
 
 
 def classify_scheduler_exception(
@@ -122,6 +260,13 @@ def classify_scheduler_exception(
             return "retryable_failure", "network_os"
     if any(isinstance(error, BotContractError) for error in chain):
         return "terminal_failure", "contract_error"
+    if any(
+        isinstance(error, OfficialRelationshipStateError)
+        for error in chain
+    ):
+        return "terminal_failure", "relationship_state_invalid"
+    if any(isinstance(error, StarsCupSchedulerStateError) for error in chain):
+        return "terminal_failure", "scheduler_state_invalid"
     if any(isinstance(error, StarsCupDeliveryError) for error in chain):
         return "terminal_failure", "delivery_error"
     if any(isinstance(error, StarsCupDailyError) for error in chain):
@@ -142,6 +287,7 @@ class OfficialStarsCupDailyScheduler:
         group_openid: str,
         send_time: time,
         state_root: Path = DEFAULT_STATE_ROOT,
+        relationship_state_path: Path = DEFAULT_OFFICIAL_TARGET_STATE_PATH,
         poll_seconds: int = 30,
         retry_seconds: int = 900,
         export_function: ExportFunction = run_stars_cup_daily_export,
@@ -157,12 +303,14 @@ class OfficialStarsCupDailyScheduler:
         self.group_openid = target
         self.send_time = send_time
         self.state_root = Path(state_root)
+        self.relationship_state_path = Path(relationship_state_path)
         self.poll_seconds = int(poll_seconds)
         self.retry_seconds = int(retry_seconds)
         self.export_function = export_function
         self.delivery_function = delivery_function
         self._completed_date = None
         self._retry_not_before: datetime | None = None
+        self._reconciled_date = None
 
     def _is_due(self, current: datetime) -> bool:
         if self._completed_date == current.date():
@@ -194,6 +342,49 @@ class OfficialStarsCupDailyScheduler:
         if not self._is_due(current):
             return SchedulerTickResult(status="not_due")
         try:
+            if self._reconciled_date != current.date():
+                reconciled = reconcile_stars_cup_scheduler_state(
+                    current,
+                    state_root=self.state_root,
+                    group_openid=self.group_openid,
+                )
+                self._reconciled_date = current.date()
+                if reconciled.status == "sent":
+                    self._completed_date = current.date()
+                    self._retry_not_before = None
+                    return SchedulerTickResult(
+                        status="sent",
+                        run_id=reconciled.run_id,
+                        error_code=reconciled.error_code,
+                    )
+                if reconciled.status == "terminal_failure":
+                    self._completed_date = current.date()
+                    self._retry_not_before = None
+                    return SchedulerTickResult(
+                        status="terminal_failure",
+                        run_id=reconciled.run_id,
+                        error_code=reconciled.error_code,
+                    )
+            relationship = load_official_target_state(
+                self.relationship_state_path,
+                self.group_openid,
+            )
+            send_allowed, relationship_code = (
+                official_target_send_allowed(relationship)
+            )
+            if not send_allowed:
+                self._completed_date = current.date()
+                self._retry_not_before = None
+                LOGGER.warning(
+                    "Stars Cup scheduled delivery blocked by "
+                    "relationship state=%s",
+                    relationship.status,
+                )
+                return SchedulerTickResult(
+                    status="terminal_failure",
+                    run_id=current.strftime("%Y%m%d"),
+                    error_code=relationship_code,
+                )
             export_result = await asyncio.to_thread(
                 self.export_function,
                 run_time=current,

@@ -434,6 +434,9 @@ def create_botpy_client(
         daily_scheduler = OfficialStarsCupDailyScheduler(
             group_openid=config.stars_cup_group_openid,
             send_time=config.stars_cup_send_time,
+            relationship_state_path=(
+                config.stars_cup_relationship_state_path
+            ),
             poll_seconds=config.stars_cup_poll_seconds,
             retry_seconds=config.stars_cup_retry_seconds,
         )

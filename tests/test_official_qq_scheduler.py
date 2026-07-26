@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import sys
 from datetime import datetime, time, timedelta
 from pathlib import Path
@@ -16,6 +18,10 @@ if str(PROJECT_ROOT) not in sys.path:
 from bot_official_qq.scheduler import (  # noqa: E402
     OfficialStarsCupDailyScheduler,
     classify_scheduler_exception,
+)
+from bot_official_qq.relationship_state import (  # noqa: E402
+    observe_official_relationship_event,
+    official_relationship_event_to_update,
 )
 from services.bot_transport import (  # noqa: E402
     BotContractError,
@@ -62,6 +68,7 @@ class OfficialQQSchedulerTests(IsolatedAsyncioTestCase):
             group_openid="opaque-test-group",
             send_time=time(hour=9),
             state_root=root,
+            relationship_state_path=root / "relationship.json",
             retry_seconds=retry_seconds,
             export_function=export,
             delivery_function=delivery,
@@ -280,6 +287,267 @@ class OfficialQQSchedulerTests(IsolatedAsyncioTestCase):
         self.assertEqual(second.status, "not_due")
         self.assertEqual(export.call_count, 1)
         delivery.assert_not_awaited()
+
+    async def test_rejected_or_removed_relationship_blocks_before_export(self):
+        for event_type, expected_code in (
+            ("GROUP_MSG_REJECT", "relationship_rejected"),
+            ("GROUP_DEL_ROBOT", "robot_removed"),
+        ):
+            with self.subTest(event_type=event_type), TemporaryDirectory() as temp_dir:
+                root = Path(temp_dir)
+                scheduler, export, delivery = self._scheduler(root)
+                update = official_relationship_event_to_update(
+                    event_type,
+                    SimpleNamespace(group_openid="opaque-test-group"),
+                    observed_at=datetime(
+                        2026,
+                        7,
+                        27,
+                        8,
+                        0,
+                        tzinfo=LOCAL_TIMEZONE,
+                    ),
+                )
+                observe_official_relationship_event(
+                    update,
+                    "opaque-test-group",
+                    root / "relationship.json",
+                )
+                result = await scheduler.tick(
+                    object(),
+                    current_time=datetime(
+                        2026,
+                        7,
+                        27,
+                        9,
+                        0,
+                        tzinfo=LOCAL_TIMEZONE,
+                    ),
+                )
+
+                self.assertEqual(result.status, "terminal_failure")
+                self.assertEqual(result.error_code, expected_code)
+                export.assert_not_called()
+                delivery.assert_not_awaited()
+
+    async def test_receive_relationship_clears_block_and_allows_delivery(self):
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            scheduler, export, delivery = self._scheduler(root)
+            rejected = official_relationship_event_to_update(
+                "GROUP_MSG_REJECT",
+                SimpleNamespace(group_openid="opaque-test-group"),
+                observed_at=datetime(
+                    2026,
+                    7,
+                    27,
+                    8,
+                    0,
+                    tzinfo=LOCAL_TIMEZONE,
+                ),
+            )
+            observe_official_relationship_event(
+                rejected,
+                "opaque-test-group",
+                root / "relationship.json",
+            )
+            received = official_relationship_event_to_update(
+                "GROUP_MSG_RECEIVE",
+                SimpleNamespace(group_openid="opaque-test-group"),
+                observed_at=datetime(
+                    2026,
+                    7,
+                    27,
+                    8,
+                    30,
+                    tzinfo=LOCAL_TIMEZONE,
+                ),
+            )
+            observe_official_relationship_event(
+                received,
+                "opaque-test-group",
+                root / "relationship.json",
+            )
+            result = await scheduler.tick(
+                object(),
+                current_time=datetime(
+                    2026,
+                    7,
+                    27,
+                    9,
+                    0,
+                    tzinfo=LOCAL_TIMEZONE,
+                ),
+            )
+
+        self.assertEqual(result.status, "sent")
+        export.assert_called_once()
+        delivery.assert_awaited_once()
+
+    async def test_corrupt_relationship_state_is_terminal(self):
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / "relationship.json").write_text("{", encoding="utf-8")
+            scheduler, export, delivery = self._scheduler(root)
+            result = await scheduler.tick(
+                object(),
+                current_time=datetime(
+                    2026,
+                    7,
+                    27,
+                    9,
+                    0,
+                    tzinfo=LOCAL_TIMEZONE,
+                ),
+            )
+
+        self.assertEqual(result.status, "terminal_failure")
+        self.assertEqual(result.error_code, "relationship_state_invalid")
+        export.assert_not_called()
+        delivery.assert_not_awaited()
+
+    @staticmethod
+    def _write_delivery_state(
+        root: Path,
+        *,
+        statuses: dict[str, str],
+        target: str = "opaque-test-group",
+    ) -> None:
+        images = {
+            kind: {
+                "sha256": "{}-hash".format(kind),
+                "status": status,
+            }
+            for kind, status in statuses.items()
+        }
+        path = root / "deliveries" / "20260727.json"
+        path.parent.mkdir(parents=True)
+        path.write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "run_id": "20260727",
+                    "transport": "qq_official",
+                    "target_hash": hashlib.sha256(
+                        target.encode("utf-8")
+                    ).hexdigest(),
+                    "images": images,
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    async def test_restart_reconciles_complete_delivery_without_export(self):
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._write_delivery_state(
+                root,
+                statuses={"total": "sent", "detail": "sent"},
+            )
+            scheduler, export, delivery = self._scheduler(root)
+            result = await scheduler.tick(
+                object(),
+                current_time=datetime(
+                    2026,
+                    7,
+                    27,
+                    9,
+                    0,
+                    tzinfo=LOCAL_TIMEZONE,
+                ),
+            )
+
+        self.assertEqual(result.status, "sent")
+        self.assertEqual(result.error_code, "reconciled_sent")
+        export.assert_not_called()
+        delivery.assert_not_awaited()
+
+    async def test_restart_reconciles_terminal_or_unknown_without_export(self):
+        for status, expected_code in (
+            ("failed_terminal", "delivery_terminal"),
+            ("unknown", "delivery_unknown"),
+            ("sending", "delivery_unknown"),
+        ):
+            with self.subTest(status=status), TemporaryDirectory() as temp_dir:
+                root = Path(temp_dir)
+                self._write_delivery_state(
+                    root,
+                    statuses={"total": status},
+                )
+                scheduler, export, delivery = self._scheduler(root)
+                result = await scheduler.tick(
+                    object(),
+                    current_time=datetime(
+                        2026,
+                        7,
+                        27,
+                        9,
+                        0,
+                        tzinfo=LOCAL_TIMEZONE,
+                    ),
+                )
+                self.assertEqual(result.status, "terminal_failure")
+                self.assertEqual(result.error_code, expected_code)
+                export.assert_not_called()
+                delivery.assert_not_awaited()
+
+    async def test_restart_allows_partial_or_retryable_delivery_to_resume(self):
+        for statuses in (
+            {"total": "sent"},
+            {"total": "sent", "detail": "failed_retryable"},
+        ):
+            with self.subTest(statuses=statuses), TemporaryDirectory() as temp_dir:
+                root = Path(temp_dir)
+                self._write_delivery_state(root, statuses=statuses)
+                scheduler, export, delivery = self._scheduler(root)
+                result = await scheduler.tick(
+                    object(),
+                    current_time=datetime(
+                        2026,
+                        7,
+                        27,
+                        9,
+                        0,
+                        tzinfo=LOCAL_TIMEZONE,
+                    ),
+                )
+                self.assertEqual(result.status, "sent")
+                export.assert_called_once()
+                delivery.assert_awaited_once()
+
+    async def test_restart_rejects_corrupt_or_wrong_target_delivery_state(self):
+        for corrupt_kind in ("invalid_json", "wrong_target"):
+            with self.subTest(corrupt_kind=corrupt_kind), TemporaryDirectory() as temp_dir:
+                root = Path(temp_dir)
+                if corrupt_kind == "invalid_json":
+                    path = root / "deliveries" / "20260727.json"
+                    path.parent.mkdir(parents=True)
+                    path.write_text("{", encoding="utf-8")
+                else:
+                    self._write_delivery_state(
+                        root,
+                        statuses={"total": "sent", "detail": "sent"},
+                        target="different-target",
+                    )
+                scheduler, export, delivery = self._scheduler(root)
+                result = await scheduler.tick(
+                    object(),
+                    current_time=datetime(
+                        2026,
+                        7,
+                        27,
+                        9,
+                        0,
+                        tzinfo=LOCAL_TIMEZONE,
+                    ),
+                )
+                self.assertEqual(result.status, "terminal_failure")
+                self.assertEqual(
+                    result.error_code,
+                    "scheduler_state_invalid",
+                )
+                export.assert_not_called()
+                delivery.assert_not_awaited()
 
 
 if __name__ == "__main__":
