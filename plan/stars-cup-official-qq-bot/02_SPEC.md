@@ -14,10 +14,10 @@ Inputs: Official event type string, SDK event object and observation time.
 Outputs: `OfficialRelationshipUpdate` or `None` for unsupported events.
 Called By: `OfficialQQEventRunner.handle_relationship`.
 Calls: Attribute readers and local time normalizer only.
-Logic: 1. Accept the six current callbacks: group add/delete/receive/reject and C2C receive/reject. 2. Read `group_openid` for group events or `openid` for C2C events. 3. Reject empty subject IDs. 4. Map group add to `joined`, group receive to `receivable`, group reject to `rejected`, group delete to `removed`, C2C receive to `receivable` and C2C reject to `rejected`. 5. Return the opaque update without logging it.
+Logic: 1. Accept the eight current callbacks: group add/delete/receive/reject, C2C receive/reject and friend add/delete. 2. Read `group_openid` for group events or `openid` for C2C/friend events. 3. Reject empty subject IDs. 4. Map group/friend add to `joined`, receive to `receivable`, reject to `rejected` and group/friend delete to `removed`. 5. Return the opaque update without logging it.
 Errors: Unsupported events return `None`; supported malformed events raise `BotContractError`.
 Side Effects: None.
-Notes: Initial callback set must include SDK 1.2.1 names `on_group_add_robot`, `on_group_del_robot`, `on_group_msg_reject`, `on_group_msg_receive`, `on_c2c_msg_reject`, `on_c2c_msg_receive`; friend add/delete may be added in a later batch.
+Notes: Callback set includes SDK 1.2.1 names `on_group_add_robot`, `on_group_del_robot`, `on_group_msg_reject`, `on_group_msg_receive`, `on_c2c_msg_reject`, `on_c2c_msg_receive`, `on_friend_add` and `on_friend_del`.
 
 ## load_official_target_state
 Function: `load_official_target_state`

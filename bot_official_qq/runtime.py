@@ -291,6 +291,8 @@ class OfficialRuntimeConfig:
                 "GROUP_MSG_RECEIVE",
                 "C2C_MSG_REJECT",
                 "C2C_MSG_RECEIVE",
+                "FRIEND_ADD",
+                "FRIEND_DEL",
             ],
         }
 
@@ -508,6 +510,18 @@ def create_botpy_client(
         async def on_c2c_msg_receive(self, event):
             await event_runner.handle_relationship(
                 event_type="C2C_MSG_RECEIVE",
+                event=event,
+            )
+
+        async def on_friend_add(self, event):
+            await event_runner.handle_relationship(
+                event_type="FRIEND_ADD",
+                event=event,
+            )
+
+        async def on_friend_del(self, event):
+            await event_runner.handle_relationship(
+                event_type="FRIEND_DEL",
                 event=event,
             )
 

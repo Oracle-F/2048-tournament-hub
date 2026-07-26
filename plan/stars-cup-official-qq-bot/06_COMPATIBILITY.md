@@ -26,7 +26,7 @@ No offline result can satisfy level 3.
 | `我的报名` | existing business cases | bound official C2C fixture | Offline complete | authorized C2C canary |
 | `我的成绩` + `更多` | business pagination cases | 11-event two-page official C2C fixture | Offline complete | authorized C2C canary |
 | `我的档案` | existing business cases | bound official C2C fixture | Offline complete | authorized C2C canary |
-| 关系事件 | transport-local state only | six callbacks, redacted state and pre-send gate | Offline complete | observe real relationship events |
+| 关系事件 | transport-local state only | eight callbacks, redacted state and pre-send gate | Offline complete | observe real relationship events |
 | 回复/引用/图片/文件 | neutral contracts | msg_id/msg_seq/reference/upload tests | Offline complete | real receipt/audit evidence |
 | NapCat/OneBot watchdog | OneBot tests | intentionally none | Retained rollback | never share with official runtime |
 
@@ -41,7 +41,7 @@ No offline result can satisfy level 3.
 | Proactive group | verified bot 60 qpm, one relationship 20 qpm, 1000/day/group; unverified bot 30 qpm | two-image workflow is well below limits; real tier/permission `UNKNOWN` |
 | Duplicate replies | same `msg_id` may be reused with distinct `msg_seq` | ordered text/attachment sequence implemented |
 | Rich media | upload in exact C2C/group scene, then send `msg_type=7`; `file_info` expires | URL/public upload and local chunk flow implemented offline |
-| Opt-out/relationship | user/group can reject proactive messages; add/remove/receive/reject events are emitted | six callbacks persist redacted target state and block rejected/removed sends |
+| Opt-out/relationship | user/group can reject proactive messages; add/remove/receive/reject events are emitted | eight callbacks persist redacted target state and block rejected/removed sends |
 | Review/deployment | platform review/permission and a continuously connected runtime are external | no platform/deployment mutation performed |
 
 First-party sources:

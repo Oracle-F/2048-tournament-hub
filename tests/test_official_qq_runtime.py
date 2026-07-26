@@ -207,7 +207,7 @@ class OfficialRuntimeClientTests(IsolatedAsyncioTestCase):
         self.assertIs(runner.handle.await_args_list[0].kwargs["event"], c2c)
         self.assertIs(runner.handle.await_args_list[1].kwargs["event"], group)
 
-    async def test_client_routes_six_relationship_callbacks_separately(self):
+    async def test_client_routes_all_relationship_callbacks_separately(self):
         with TemporaryDirectory() as temp_dir:
             database = Path(temp_dir) / "bot.sqlite3"
             database.touch()
@@ -227,6 +227,8 @@ class OfficialRuntimeClientTests(IsolatedAsyncioTestCase):
                 ("on_group_msg_receive", "GROUP_MSG_RECEIVE"),
                 ("on_c2c_msg_reject", "C2C_MSG_REJECT"),
                 ("on_c2c_msg_receive", "C2C_MSG_RECEIVE"),
+                ("on_friend_add", "FRIEND_ADD"),
+                ("on_friend_del", "FRIEND_DEL"),
             )
             events = []
             for callback_name, _event_type in callbacks:

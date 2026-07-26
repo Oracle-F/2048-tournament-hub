@@ -37,7 +37,7 @@
 | 图片/文件 | scene-specific 上传后以 `msg_type=7` 发送；`file_info` 有时效 | C2C/群分别上传，本地文件走分片 facade |
 | 引用/多回复 | `message_reference`、同一 `msg_id` 配不同 `msg_seq` | DTO 保存 reference，序号单调递增 |
 | 事件订阅 | WebSocket 或 Webhook；`GROUP_AND_C2C_EVENT=1<<25` | 当前 WebSocket + `public_messages=True` |
-| 关系变化 | 加/退群、接受/拒收主动消息、加/删好友 | 六类当前 callback 已接入；目标状态哈希持久化并门禁主动发送 |
+| 关系变化 | 加/退群、接受/拒收主动消息、加/删好友 | 八类 callback 已接入；目标状态哈希持久化并门禁主动发送 |
 | 审核/权限 | 特殊 intent 需平台授权；未授权可导致连接关闭 | preflight 只能验本地配置，平台项一律 `UNKNOWN` |
 
 Official sources:

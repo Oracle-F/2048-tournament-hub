@@ -19,7 +19,7 @@
 - [x] 2. Implement `classify_scheduler_exception` only; replace catch-all retry behavior and rerun scheduler tests.
 - [x] 3. Add pure relationship-event mapping tests using SDK 1.2.1 field names.
 - [x] 4. Implement `relationship_state.py` with atomic, hashed target state and no runtime wiring.
-- [x] 5. Add runtime callback tests for the six relationship events; prove no SQLite/business dispatch and no raw ID leakage.
+- [x] 5. Add runtime callback tests for all eight relationship events; prove no SQLite/business dispatch and no raw ID leakage.
 - [x] 6. Wire callbacks and expose relationship state in preflight while leaving platform capabilities `UNKNOWN`.
 - [x] 7. Add scheduler gate tests for rejected/removed, joined/receivable and unknown states.
 - [x] 8. Wire the target-state gate before export/send.

@@ -39,6 +39,8 @@ _EVENT_FIELDS: dict[
     "GROUP_MSG_RECEIVE": ("group", "group_openid", "receivable"),
     "C2C_MSG_REJECT": ("c2c", "openid", "rejected"),
     "C2C_MSG_RECEIVE": ("c2c", "openid", "receivable"),
+    "FRIEND_ADD": ("c2c", "openid", "joined"),
+    "FRIEND_DEL": ("c2c", "openid", "removed"),
 }
 
 

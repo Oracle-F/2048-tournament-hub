@@ -55,10 +55,12 @@ class OfficialRelationshipMappingTests(TestCase):
                 self.assertEqual(update.status, expected_status)
                 self.assertEqual(update.observed_at, OBSERVED_AT)
 
-    def test_c2c_events_use_openid_and_expected_states(self):
+    def test_c2c_relationship_events_use_openid_and_expected_states(self):
         mappings = {
             "C2C_MSG_REJECT": "rejected",
             "C2C_MSG_RECEIVE": "receivable",
+            "FRIEND_ADD": "joined",
+            "FRIEND_DEL": "removed",
         }
         for event_type, expected_status in mappings.items():
             with self.subTest(event_type=event_type):

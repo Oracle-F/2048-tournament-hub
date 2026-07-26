@@ -36,7 +36,7 @@ still unproven because no authorized login, send or platform inspection occurred
 
 ## Source-derived findings
 
-1. `public_messages=True` now routes the six group/C2C relationship callbacks
+1. `public_messages=True` now routes all eight group/C2C/friend relationship callbacks
    separately from message-create events and business/database handling.
 2. SDK 1.2.1 fields `group_openid` and `openid` are mapped without numeric QQ
    conversion; only the configured target group's SHA-256 and state persist.
