@@ -56,7 +56,7 @@ Official sources:
 
 ## Verified local baseline
 - 基础命令由历史 12 项增至 15 项并全部通过；Bot 47/47；快速全量 `TOTAL PASS`。
-- 全量 unittest 211 项通过；`pip check` 通过。
+- 全量 unittest 212 项通过；`pip check` 通过。
 - 实际安装 `qq-botpy==1.2.1` 的离线 preflight 已用当前 snapshot/两图通过。
 - 官方路由已有群星杯、帮助图、绑定/解绑、报名/取消、预约、看板、Verse、成绩门禁、管理员、回放流程夹具。
 

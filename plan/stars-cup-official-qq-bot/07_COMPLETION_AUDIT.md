@@ -21,6 +21,7 @@ still unproven because no authorized login, send or platform inspection occurred
 | Daily export preserves last good | `stars_cup_daily_service.py` | staged cache, immutable output, validation before atomic latest | Confirmed |
 | Partial image delivery resumes | daily service tests/state | per-image hash/status and skip-sent logic | Confirmed offline |
 | Scheduler starts only after ready | `runtime.py`, scheduler tests | one guarded task, cancelled on client close | Confirmed offline |
+| Scheduler task does not fail silently | runtime supervisor test | exception/return restart with redacted log and bounded delay | Confirmed offline |
 | Service startup rejects invalid daily state | preflight tests, systemd example | current-day reconciliation plus `ExecStartPre` before `--start` | Confirmed offline |
 | Real QQ permissions exist | no platform access/authorization | no external evidence | UNKNOWN |
 | Target bot is in group and accepts active messages | relationship callbacks/state exist, but no authorized runtime event was observed | offline code cannot prove current platform state | UNKNOWN |
@@ -30,7 +31,7 @@ still unproven because no authorized login, send or platform inspection occurred
 
 - Recorded historical baseline: 12 basic tests, Bot 47/47 and fast suite `TOTAL PASS`.
 - Latest implementation validation: the same basic command now runs 15/15,
-  full unittest runs 211/211, plus `pip check`, Bot 47/47, fast `TOTAL PASS`
+  full unittest runs 212/212, plus `pip check`, Bot 47/47, fast `TOTAL PASS`
   and actual installed-SDK offline preflight with current snapshot/images.
 - Tests use local fakes and `data/testing.db`; they do not prove platform review,
   permission, group membership, audit acceptance, production networking or rate tier.
@@ -49,6 +50,8 @@ still unproven because no authorized login, send or platform inspection occurred
    have named official C2C end-to-end evidence.
 6. Offline preflight now reports the same current-day reconciliation, and the
    uninstalled systemd template refuses to start the gateway when it fails.
+7. The runtime restarts a scheduler task that unexpectedly raises or returns;
+   cancellation remains immediate and error text is not written to logs.
 
 ## Safety conclusion
 

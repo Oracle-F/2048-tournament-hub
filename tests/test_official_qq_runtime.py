@@ -27,6 +27,7 @@ from bot_official_qq.runtime import (  # noqa: E402
     create_botpy_client,
     preflight_official_qq_bot,
     run_official_qq_bot,
+    _run_stars_cup_scheduler_supervised,
 )
 from bot_official_qq.scheduler import (  # noqa: E402
     SchedulerReconciliation,
@@ -292,6 +293,49 @@ class OfficialRuntimeClientTests(IsolatedAsyncioTestCase):
 
         self.assertTrue(first_task.cancelled())
         self.assertTrue(client.closed)
+
+    async def test_scheduler_supervisor_restarts_without_logging_exception_text(self):
+        attempts = 0
+        sleep_calls = []
+        third_attempt = asyncio.Event()
+
+        async def run_forever(_transport):
+            nonlocal attempts
+            attempts += 1
+            if attempts == 1:
+                raise RuntimeError("opaque-group-must-not-leak")
+            if attempts == 2:
+                return
+            third_attempt.set()
+            await asyncio.Event().wait()
+
+        async def sleep(seconds):
+            sleep_calls.append(seconds)
+
+        scheduler = SimpleNamespace(run_forever=run_forever)
+        with self.assertLogs(
+            "bot_official_qq.runtime",
+            level="ERROR",
+        ) as captured:
+            task = asyncio.create_task(
+                _run_stars_cup_scheduler_supervised(
+                    scheduler,
+                    object(),
+                    retry_seconds=17,
+                    sleep=sleep,
+                )
+            )
+            await third_attempt.wait()
+            task.cancel()
+            with self.assertRaises(asyncio.CancelledError):
+                await task
+
+        rendered = "\n".join(captured.output)
+        self.assertEqual(attempts, 3)
+        self.assertEqual(sleep_calls, [17, 17])
+        self.assertIn("RuntimeError", rendered)
+        self.assertIn("unexpected_return", rendered)
+        self.assertNotIn("opaque-group-must-not-leak", rendered)
 
     async def test_event_runner_always_closes_short_lived_database_connection(self):
         connection = Mock()

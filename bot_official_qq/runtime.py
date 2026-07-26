@@ -414,6 +414,33 @@ def _load_botpy() -> ModuleType:
     return botpy
 
 
+async def _run_stars_cup_scheduler_supervised(
+    scheduler: OfficialStarsCupDailyScheduler | Any,
+    transport: Any,
+    *,
+    retry_seconds: int,
+    sleep=asyncio.sleep,
+) -> None:
+    """Restart an unexpectedly stopped scheduler with a bounded delay."""
+
+    while True:
+        try:
+            await scheduler.run_forever(transport)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            outcome = type(exc).__name__
+        else:
+            outcome = "unexpected_return"
+        LOGGER.error(
+            "official QQ daily scheduler stopped outcome=%s "
+            "retry_seconds=%s",
+            outcome,
+            retry_seconds,
+        )
+        await sleep(retry_seconds)
+
+
 def create_botpy_client(
     config: OfficialRuntimeConfig,
     *,
@@ -464,7 +491,11 @@ def create_botpy_client(
             ):
                 transport = event_runner.transport_for(self.api)
                 self._stars_cup_scheduler_task = asyncio.create_task(
-                    daily_scheduler.run_forever(transport),
+                    _run_stars_cup_scheduler_supervised(
+                        daily_scheduler,
+                        transport,
+                        retry_seconds=config.stars_cup_retry_seconds,
+                    ),
                     name="stars-cup-official-qq-daily",
                 )
 

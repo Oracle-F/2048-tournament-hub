@@ -58,6 +58,7 @@ First-party sources:
 - Snapshot and both image hashes can be checked without login/network.
 - Preflight reports current-day durable delivery reconciliation and rejects invalid state without exposing the target or filesystem paths.
 - The uninstalled systemd example gates `--start` behind the same offline preflight.
+- The runtime supervises unexpected scheduler exit with redacted outcome logging and configured retry delay; explicit cancellation still stops immediately.
 - Local inbound files are bounded and atomically published.
 - OneBot entrypoint/lifecycle remains independent and runnable.
 
