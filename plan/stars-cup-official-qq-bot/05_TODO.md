@@ -1,0 +1,29 @@
+# Ordered implementation checklist
+
+- [ ] Normalize the four Fedora/Windows expected path assertions without changing production paths.
+- [ ] Run the 12 basic tests, Bot cases and `tests/run_all.py --fast`; record the clean baseline.
+- [ ] Add transport DTOs, protocol errors and `normalize_legacy_reply` in `services/bot_transport.py`.
+- [ ] Add unit tests for text, multiple CQ images, malformed URI, empty reply and opaque IDs.
+- [ ] Move OneBot event/send conversion into `bot_private_qq/onebot_transport.py`.
+- [ ] Route `bot_private_qq/app.py` through `dispatch_business_message` while preserving startup/watchdog hooks.
+- [ ] Run all existing Bot cases and targeted startup/help/flow/group tests.
+- [ ] Add `services/stars_cup_bot_service.py` with parser, latest loader and deterministic text renderers.
+- [ ] Add dedicated command routing to `handle_group_message` before generic binding checks.
+- [ ] Add snapshot fixtures and tests for overview, A-F team, player, self, stale, missing, corrupt and ambiguous data.
+- [ ] Add `services/stars_cup_daily_service.py` with lock, immutable run state, validation and atomic latest pointer.
+- [ ] Add `scripts/run_stars_cup_daily.py` with export-only dry-run as the default.
+- [ ] Add tests for repeat runs, partial query failure, corrupt PNG, pointer preservation and concurrent lock rejection.
+- [ ] Add fake transport delivery tests for two successes, first success/second retry, terminal rejection and unknown receipt.
+- [ ] Run a local dry-run against the formal roster and inspect both PNGs without sending.
+- [ ] Add disabled official QQ environment keys to `.env.bot.example`; do not populate values.
+- [ ] Verify the current stable release of Tencent `qq-botpy`, then pin it in `requirements-bot.txt`.
+- [ ] Add the official WebSocket event adapter and fake-client contract tests for C2C/group @.
+- [ ] Add official passive text/media reply tests for reply windows, `msg_seq`, references and upload scope.
+- [ ] Add official proactive group image tests for quota, opt-out, non-membership, permission and audit errors.
+- [ ] Re-run basic, Bot, fast, transport and daily suites sequentially.
+- [ ] Document manual dry-run, manual export, delivery-state inspection and OneBot rollback commands.
+- [ ] Request only the external values listed as `UNKNOWN` after all offline tests pass.
+- [ ] With explicit authorization, perform one official sandbox/allowlisted-group passive text canary.
+- [ ] With explicit authorization, perform one two-image proactive canary and verify receipts/audit outcome.
+- [ ] Keep OneBot enabled until the群星杯 query and three scheduled deliveries pass without regression.
+- [ ] Migrate remaining legacy commands in small tested batches; remove no OneBot code in this project phase.
