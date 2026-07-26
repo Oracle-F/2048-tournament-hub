@@ -8,16 +8,27 @@ in a worker thread so inbound WebSocket callbacks remain responsive.
 from __future__ import annotations
 
 import asyncio
+import errno
 import logging
 from dataclasses import dataclass
 from datetime import datetime, time, timedelta
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Literal
+from urllib.error import HTTPError, URLError
 
-from services.bot_transport import BotTransport, SendReceipt
+from services.bot_transport import (
+    BotContractError,
+    BotTransport,
+    BotTransportError,
+    SendReceipt,
+)
 from services.stars_cup_daily_service import (
     DEFAULT_STATE_ROOT,
     DailyRunResult,
+    StarsCupDailyError,
+    StarsCupDailyLocked,
+    StarsCupDeliveryError,
+    StarsCupDeliveryLocked,
     deliver_stars_cup_daily_images,
     run_stars_cup_daily_export,
 )
@@ -33,6 +44,22 @@ SchedulerStatus = Literal[
 ]
 ExportFunction = Callable[..., DailyRunResult]
 DeliveryFunction = Callable[..., Awaitable[DailyRunResult]]
+_TRANSIENT_HTTP_STATUS_CODES = frozenset(
+    {408, 425, 429, *range(500, 600)}
+)
+_TRANSIENT_ERRNOS = frozenset(
+    {
+        errno.EAGAIN,
+        errno.ECONNABORTED,
+        errno.ECONNREFUSED,
+        errno.ECONNRESET,
+        errno.EHOSTUNREACH,
+        errno.ENETDOWN,
+        errno.ENETUNREACH,
+        errno.EPIPE,
+        errno.ETIMEDOUT,
+    }
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,6 +74,63 @@ def _local_time(value: datetime | None) -> datetime:
     if current.tzinfo is None:
         current = current.replace(tzinfo=LOCAL_TIMEZONE)
     return current.astimezone(LOCAL_TIMEZONE)
+
+
+def _exception_chain(exc: Exception) -> tuple[BaseException, ...]:
+    values: list[BaseException] = []
+    seen: set[int] = set()
+    current: BaseException | None = exc
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        values.append(current)
+        current = current.__cause__ or current.__context__
+    return tuple(values)
+
+
+def classify_scheduler_exception(
+    exc: Exception,
+) -> tuple[SchedulerStatus, str]:
+    """Classify an escaped workflow exception without raising another one."""
+
+    chain = _exception_chain(exc)
+    for error in chain:
+        if isinstance(error, BotTransportError):
+            return (
+                (
+                    "retryable_failure"
+                    if error.retryable
+                    else "terminal_failure"
+                ),
+                error.code or "transport_error",
+            )
+    if any(isinstance(error, StarsCupDeliveryLocked) for error in chain):
+        return "retryable_failure", "delivery_locked"
+    if any(isinstance(error, StarsCupDailyLocked) for error in chain):
+        return "retryable_failure", "daily_locked"
+    if any(isinstance(error, TimeoutError) for error in chain):
+        return "retryable_failure", "network_timeout"
+    if any(isinstance(error, ConnectionError) for error in chain):
+        return "retryable_failure", "network_connection"
+    for error in chain:
+        if isinstance(error, HTTPError):
+            if int(error.code) in _TRANSIENT_HTTP_STATUS_CODES:
+                return "retryable_failure", "http_{}".format(error.code)
+            return "terminal_failure", "http_{}".format(error.code)
+        if isinstance(error, URLError):
+            return "retryable_failure", "network_url"
+        if isinstance(error, OSError) and error.errno in _TRANSIENT_ERRNOS:
+            return "retryable_failure", "network_os"
+    if any(isinstance(error, BotContractError) for error in chain):
+        return "terminal_failure", "contract_error"
+    if any(isinstance(error, StarsCupDeliveryError) for error in chain):
+        return "terminal_failure", "delivery_error"
+    if any(isinstance(error, StarsCupDailyError) for error in chain):
+        return "terminal_failure", "daily_error"
+    if any(isinstance(error, ValueError) for error in chain):
+        return "terminal_failure", "invalid_configuration"
+    if any(isinstance(error, OSError) for error in chain):
+        return "terminal_failure", "filesystem_error"
+    return "terminal_failure", "unexpected_exception"
 
 
 class OfficialStarsCupDailyScheduler:
@@ -128,17 +212,25 @@ class OfficialStarsCupDailyScheduler:
                 attempt_time=current,
             )
         except Exception as exc:
-            self._retry_not_before = current + timedelta(
-                seconds=self.retry_seconds
-            )
+            status, error_code = classify_scheduler_exception(exc)
+            if status == "retryable_failure":
+                self._retry_not_before = current + timedelta(
+                    seconds=self.retry_seconds
+                )
+            else:
+                self._completed_date = current.date()
+                self._retry_not_before = None
             LOGGER.warning(
-                "Stars Cup scheduled workflow failed before receipt type=%s",
+                "Stars Cup scheduled workflow failed before receipt "
+                "type=%s status=%s code=%s",
                 type(exc).__name__,
+                status,
+                error_code,
             )
             return SchedulerTickResult(
-                status="retryable_failure",
+                status=status,
                 run_id=current.strftime("%Y%m%d"),
-                error_code=type(exc).__name__,
+                error_code=error_code,
             )
         status, error_code = self._classify_receipts(
             tuple(delivered.receipts)

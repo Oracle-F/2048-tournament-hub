@@ -15,8 +15,18 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from bot_official_qq.scheduler import (  # noqa: E402
     OfficialStarsCupDailyScheduler,
+    classify_scheduler_exception,
 )
-from services.bot_transport import SendReceipt  # noqa: E402
+from services.bot_transport import (  # noqa: E402
+    BotContractError,
+    BotTransportError,
+    SendReceipt,
+)
+from services.stars_cup_daily_service import (  # noqa: E402
+    StarsCupDailyError,
+    StarsCupDailyLocked,
+    StarsCupDeliveryLocked,
+)
 from settings import LOCAL_TIMEZONE  # noqa: E402
 
 
@@ -173,6 +183,103 @@ class OfficialQQSchedulerTests(IsolatedAsyncioTestCase):
                 self.assertEqual(second.status, "not_due")
                 self.assertEqual(export.call_count, 1)
                 self.assertEqual(delivery.await_count, 1)
+
+    def test_exception_classifier_honors_transport_and_lock_semantics(self):
+        self.assertEqual(
+            classify_scheduler_exception(
+                BotTransportError(
+                    "quota",
+                    code="429",
+                    retryable=True,
+                )
+            ),
+            ("retryable_failure", "429"),
+        )
+        self.assertEqual(
+            classify_scheduler_exception(
+                BotTransportError(
+                    "permission",
+                    code="permission_denied",
+                    retryable=False,
+                )
+            ),
+            ("terminal_failure", "permission_denied"),
+        )
+        self.assertEqual(
+            classify_scheduler_exception(StarsCupDailyLocked("busy")),
+            ("retryable_failure", "daily_locked"),
+        )
+        self.assertEqual(
+            classify_scheduler_exception(StarsCupDeliveryLocked("busy")),
+            ("retryable_failure", "delivery_locked"),
+        )
+
+    def test_exception_classifier_detects_wrapped_transient_failures(self):
+        try:
+            try:
+                raise TimeoutError("Verse timed out")
+            except TimeoutError as cause:
+                raise StarsCupDailyError("daily export failed") from cause
+        except StarsCupDailyError as error:
+            classified = classify_scheduler_exception(error)
+        self.assertEqual(
+            classified,
+            ("retryable_failure", "network_timeout"),
+        )
+
+        try:
+            try:
+                raise ConnectionError("connection reset")
+            except ConnectionError as cause:
+                raise StarsCupDailyError("daily export failed") from cause
+        except StarsCupDailyError as error:
+            classified = classify_scheduler_exception(error)
+        self.assertEqual(
+            classified,
+            ("retryable_failure", "network_connection"),
+        )
+
+    def test_exception_classifier_stops_deterministic_and_unknown_failures(self):
+        self.assertEqual(
+            classify_scheduler_exception(BotContractError("bad payload")),
+            ("terminal_failure", "contract_error"),
+        )
+        self.assertEqual(
+            classify_scheduler_exception(StarsCupDailyError("bad artifact")),
+            ("terminal_failure", "daily_error"),
+        )
+        self.assertEqual(
+            classify_scheduler_exception(ValueError("bad configuration")),
+            ("terminal_failure", "invalid_configuration"),
+        )
+        self.assertEqual(
+            classify_scheduler_exception(RuntimeError("unexpected")),
+            ("terminal_failure", "unexpected_exception"),
+        )
+
+    async def test_terminal_exception_is_not_retried_same_day(self):
+        with TemporaryDirectory() as temp_dir:
+            scheduler, export, delivery = self._scheduler(Path(temp_dir))
+            export.side_effect = ValueError("bad configuration")
+            current = datetime(
+                2026,
+                7,
+                27,
+                9,
+                0,
+                tzinfo=LOCAL_TIMEZONE,
+            )
+            first = await scheduler.tick(object(), current_time=current)
+            second = await scheduler.tick(
+                object(),
+                current_time=current + timedelta(hours=1),
+            )
+
+        self.assertEqual(first.status, "terminal_failure")
+        self.assertEqual(first.error_code, "invalid_configuration")
+        self.assertEqual(second.status, "not_due")
+        self.assertEqual(export.call_count, 1)
+        delivery.assert_not_awaited()
 
 
 if __name__ == "__main__":
