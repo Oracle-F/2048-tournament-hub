@@ -27,11 +27,19 @@
 - `scripts/run_stars_cup_daily.py` 是单次执行命令：先在暂存缓存中查询，
   再生成并校验两张 1920×1080 PNG 与 `榜图数据.json`，全部成功后才更新
   latest 指针。该命令不启动定时器，也不发送 QQ 消息。
-- `bot_official_qq/` 目前是离线适配层和测试门面。导入它不会读取
-  AppID/AppSecret、连接 WebSocket、登录 QQ 或发送消息；真实运行入口尚未启用。
-- 官方稳定 PyPI 包 `qq-botpy` 与 2026-07 官方接口存在版本差距，因此当前
-  不在 `requirements-bot.txt` 中锁定它。分片上传差异集中封装在
-  `bot_official_qq/sdk_facade.py`，待沙箱授权时再做版本和兼容性冒烟测试。
+- `bot_official_qq/` 已包含离线适配层、受保护的 `qq-botpy` WebSocket
+  运行入口和群星杯日任务调度器。普通导入和默认配置检查不会读取 dotenv
+  文件、连接 WebSocket、登录 QQ 或发送消息。
+- 官方运行入口需要 `OFFICIAL_QQ_BOT_ENABLED=true` 与命令行 `--start`
+  同时满足；正式环境还需要第二个
+  `OFFICIAL_QQ_BOT_PRODUCTION_CONFIRMED=true`。默认使用沙箱。
+- 群星杯每日任务另有独立开关，默认关闭。它只在官方网关 ready 后启动，
+  通过现有不可变导出、哈希校验和逐图投递状态发送两张图片；榜图生成或
+  发送失败不会修改比赛数据库或阻塞 OneBot 路径。
+- 官方稳定 PyPI 包 `qq-botpy==1.2.1` 锁定在独立的
+  `requirements-official-qq.txt`，不会强加给 OneBot-only 环境。2026-07
+  分片上传接口与 SDK 的版本差异继续集中在
+  `bot_official_qq/sdk_facade.py`。
 
 官方能力依据：
 
@@ -39,6 +47,8 @@
 - [发送群聊消息](https://bot.q.qq.com/wiki/develop/api-v2/autogen/api/v2_groups_group_openid_messages.post.html)
 - [群聊富媒体上传](https://bot.q.qq.com/wiki/develop/api-v2/autogen/api/v2_groups_group_openid_files.post.html)
 - [群聊富媒体预上传](https://bot.q.qq.com/wiki/develop/api-v2/autogen/api/v2_groups_group_id_upload_prepare.post.html)
+- [事件订阅与通知](https://bot.q.qq.com/wiki/develop/api-v2/dev-prepare/interface-framework/event-emit.html)
+- [Python SDK 接入指南](https://bot.q.qq.com/wiki/develop/pythonsdk/)
 
 ## 离线验证
 
@@ -53,7 +63,9 @@
   tests.test_official_qq_transport \
   tests.test_official_qq_app \
   tests.test_official_qq_media_upload \
-  tests.test_official_qq_sdk_facade
+  tests.test_official_qq_sdk_facade \
+  tests.test_official_qq_runtime \
+  tests.test_official_qq_scheduler
 ```
 
 查看单次每日任务参数：
@@ -66,11 +78,44 @@
 指针，但仍不会发送 QQ 消息。正式运行前应先确认名单、截止时刻、背景图和
 当前缓存路径。
 
+## 官方运行入口（默认不联网）
+
+安装独立依赖：
+
+```bash
+./.venv/bin/pip install -r requirements-official-qq.txt
+```
+
+凭据必须由进程环境或服务管理器的私有 `EnvironmentFile` 注入；入口不会
+自动读取 `.env` 或 `.env.bot.secret`。先执行只读检查：
+
+```bash
+./.venv/bin/python scripts/run_official_qq_bot.py --check-config
+```
+
+只有获得授权后才执行真实入口：
+
+```bash
+./.venv/bin/python scripts/run_official_qq_bot.py --start
+```
+
+需要每日自动发送时，还需显式配置：
+
+- `OFFICIAL_QQ_STARS_CUP_SCHEDULE_ENABLED=true`
+- `OFFICIAL_QQ_STARS_CUP_GROUP_OPENID=<获准测试群或正式群 OpenID>`
+- `OFFICIAL_QQ_STARS_CUP_SEND_TIME=HH:MM`（新加坡时区）
+
+调度器在指定时间后执行一次；同日重启会复用已发布导出和逐图投递状态。
+配额或暂时性失败按配置间隔重试；权限拒绝、未知回执等状态同日不盲重试。
+Fedora systemd 的未启用模板见
+`deploy/systemd/official-qq-bot.service.example`，其中路径和服务账号都是
+占位符，当前没有安装、enable 或 start。
+
 ## 上线与回滚门
 
 只有在用户明确提供并确认官方平台权限、测试机器人、允许的群 OpenID 和
-发送时刻后，才添加真实运行入口并进行沙箱/白名单群冒烟。上线时一次只启用
-一个传输；任何审核、权限、拒收、配额或未知回执都停止自动重试并保留状态。
+发送时刻后，才执行真实入口并进行沙箱/白名单群冒烟。上线时一次只启用
+一个传输；任何审核、权限、拒收或未知回执都停止自动重试并保留状态。
 
-回滚不涉及数据库或计分数据迁移：停止官方运行入口和外部定时器，继续使用
+回滚不涉及数据库或计分数据迁移：停止官方运行入口及其内置调度器，继续使用
 原 OneBot 入口；保留最后有效 latest 指针、不可变榜图和逐图投递回执。
