@@ -16,6 +16,9 @@ if PROJECT_ROOT_TEXT in sys.path:
 sys.path.insert(0, PROJECT_ROOT_TEXT)
 
 ENTRYPOINT_PATH = PROJECT_ROOT / "scripts" / "run_official_qq_bot.py"
+SERVICE_TEMPLATE_PATH = (
+    PROJECT_ROOT / "deploy" / "systemd" / "official-qq-bot.service.example"
+)
 ENTRYPOINT_SPEC = importlib.util.spec_from_file_location(
     "official_qq_entrypoint_under_test",
     ENTRYPOINT_PATH,
@@ -114,6 +117,21 @@ class OfficialQQEntrypointTests(TestCase):
         preflight.assert_called_once()
         run.assert_not_called()
         self.assertIn('"status": "preflight_passed"', output.getvalue())
+
+    def test_systemd_template_runs_offline_preflight_before_start(self):
+        rendered = SERVICE_TEMPLATE_PATH.read_text(encoding="utf-8")
+        preflight = (
+            "ExecStartPre=/opt/2048-event/赛事中台/.venv/bin/python "
+            "scripts/run_official_qq_bot.py --preflight"
+        )
+        start = (
+            "ExecStart=/opt/2048-event/赛事中台/.venv/bin/python "
+            "scripts/run_official_qq_bot.py --start"
+        )
+
+        self.assertIn(preflight, rendered)
+        self.assertIn(start, rendered)
+        self.assertLess(rendered.index(preflight), rendered.index(start))
 
 
 if __name__ == "__main__":

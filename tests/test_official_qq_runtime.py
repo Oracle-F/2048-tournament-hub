@@ -28,6 +28,10 @@ from bot_official_qq.runtime import (  # noqa: E402
     preflight_official_qq_bot,
     run_official_qq_bot,
 )
+from bot_official_qq.scheduler import (  # noqa: E402
+    SchedulerReconciliation,
+    StarsCupSchedulerStateError,
+)
 from settings import LOCAL_TIMEZONE  # noqa: E402
 
 
@@ -423,6 +427,7 @@ class OfficialRuntimePreflightTests(TestCase):
         self.assertTrue(summary["sdk"]["api_facade_compatible"])
         self.assertEqual(summary["sdk"]["intent"], 1 << 25)
         self.assertFalse(summary["stars_cup_snapshot"]["checked"])
+        self.assertFalse(summary["scheduler_state"]["checked"])
         readiness = summary["platform_readiness"]
         self.assertEqual(readiness["application_review"]["status"], "UNKNOWN")
         self.assertEqual(readiness["intent_permission"]["status"], "UNKNOWN")
@@ -447,21 +452,61 @@ class OfficialRuntimePreflightTests(TestCase):
                 ),
                 stale=False,
             )
-            summary = preflight_official_qq_bot(
-                _config(
-                    database,
-                    stars_cup_schedule_enabled=True,
-                    stars_cup_group_openid="opaque-private-group",
+            with patch(
+                "bot_official_qq.runtime.reconcile_stars_cup_scheduler_state",
+                return_value=SchedulerReconciliation(
+                    status="not_started",
+                    run_id="20260727",
                 ),
-                botpy_module=FAKE_BOTPY,
-                snapshot_loader=Mock(return_value=loaded),
-            )
+            ) as reconcile:
+                summary = preflight_official_qq_bot(
+                    _config(
+                        database,
+                        stars_cup_schedule_enabled=True,
+                        stars_cup_group_openid="opaque-private-group",
+                    ),
+                    botpy_module=FAKE_BOTPY,
+                    snapshot_loader=Mock(return_value=loaded),
+                )
 
         snapshot = summary["stars_cup_snapshot"]
         self.assertTrue(snapshot["checked"])
         self.assertEqual(snapshot["run_id"], "20260727")
+        scheduler_state = summary["scheduler_state"]
+        self.assertTrue(scheduler_state["checked"])
+        self.assertEqual(scheduler_state["run_id"], "20260727")
+        self.assertEqual(scheduler_state["status"], "not_started")
+        self.assertIsNone(scheduler_state["error_code"])
+        reconcile.assert_called_once()
         self.assertNotIn("path", str(snapshot).lower())
         self.assertNotIn("opaque-private-group", str(summary))
+
+    def test_schedule_preflight_rejects_corrupt_delivery_state(self):
+        with TemporaryDirectory() as temp_dir:
+            database = Path(temp_dir) / "bot.sqlite3"
+            database.touch()
+            config = _config(
+                database,
+                stars_cup_schedule_enabled=True,
+                stars_cup_group_openid="opaque-private-group",
+            )
+            with patch(
+                "bot_official_qq.runtime.reconcile_stars_cup_scheduler_state",
+                side_effect=StarsCupSchedulerStateError(
+                    "corrupt state",
+                    code="scheduler_state_invalid",
+                ),
+            ), self.assertRaises(OfficialRuntimeConfigError) as raised:
+                preflight_official_qq_bot(
+                    config,
+                    botpy_module=FAKE_BOTPY,
+                    snapshot_loader=Mock(),
+                )
+
+        self.assertEqual(
+            raised.exception.code,
+            "scheduler_state_invalid",
+        )
 
     def test_preflight_reports_observed_relationship_without_claiming_permissions(self):
         target = "opaque-private-group"
@@ -499,16 +544,23 @@ class OfficialRuntimePreflightTests(TestCase):
                 ),
                 stale=False,
             )
-            summary = preflight_official_qq_bot(
-                _config(
-                    database,
-                    stars_cup_schedule_enabled=True,
-                    stars_cup_group_openid=target,
-                    stars_cup_relationship_state_path=state_path,
+            with patch(
+                "bot_official_qq.runtime.reconcile_stars_cup_scheduler_state",
+                return_value=SchedulerReconciliation(
+                    status="not_started",
+                    run_id="20260727",
                 ),
-                botpy_module=FAKE_BOTPY,
-                snapshot_loader=Mock(return_value=loaded),
-            )
+            ):
+                summary = preflight_official_qq_bot(
+                    _config(
+                        database,
+                        stars_cup_schedule_enabled=True,
+                        stars_cup_group_openid=target,
+                        stars_cup_relationship_state_path=state_path,
+                    ),
+                    botpy_module=FAKE_BOTPY,
+                    snapshot_loader=Mock(return_value=loaded),
+                )
 
         readiness = summary["platform_readiness"]
         self.assertEqual(

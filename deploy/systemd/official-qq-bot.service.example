@@ -9,6 +9,7 @@ User=eventbot
 Group=eventbot
 WorkingDirectory=/opt/2048-event/赛事中台
 EnvironmentFile=/etc/2048-event/official-qq-bot.env
+ExecStartPre=/opt/2048-event/赛事中台/.venv/bin/python scripts/run_official_qq_bot.py --preflight
 ExecStart=/opt/2048-event/赛事中台/.venv/bin/python scripts/run_official_qq_bot.py --start
 Restart=on-failure
 RestartSec=15

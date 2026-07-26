@@ -12,7 +12,7 @@ import importlib.metadata
 import logging
 import os
 from dataclasses import dataclass
-from datetime import time
+from datetime import datetime, time
 from pathlib import Path
 from types import ModuleType
 from typing import Any, Mapping
@@ -26,7 +26,11 @@ from bot_official_qq.relationship_state import (
     observe_official_relationship_event,
     official_relationship_event_to_update,
 )
-from bot_official_qq.scheduler import OfficialStarsCupDailyScheduler
+from bot_official_qq.scheduler import (
+    OfficialStarsCupDailyScheduler,
+    StarsCupSchedulerStateError,
+    reconcile_stars_cup_scheduler_state,
+)
 from bot_official_qq.sdk_facade import Botpy2026ApiFacade
 from bot_official_qq.transport import OfficialEventDeduplicator, OfficialQQTransport
 from db import connect
@@ -34,7 +38,8 @@ from services.stars_cup_bot_service import (
     StarsCupSnapshotUnavailable,
     load_latest_stars_cup_snapshot,
 )
-from settings import DATABASE_PATH
+from services.stars_cup_daily_service import DEFAULT_STATE_ROOT
+from settings import DATABASE_PATH, LOCAL_TIMEZONE
 
 
 LOGGER = logging.getLogger(__name__)
@@ -677,11 +682,31 @@ def preflight_official_qq_bot(
             "stars_cup_snapshot": {
                 "checked": False,
             },
+            "scheduler_state": {
+                "checked": False,
+            },
             "platform_readiness": build_platform_readiness_summary(
                 config
             ),
         }
         if config.stars_cup_schedule_enabled:
+            try:
+                reconciled = reconcile_stars_cup_scheduler_state(
+                    datetime.now(LOCAL_TIMEZONE),
+                    state_root=DEFAULT_STATE_ROOT,
+                    group_openid=config.stars_cup_group_openid,
+                )
+            except StarsCupSchedulerStateError as exc:
+                raise OfficialRuntimeConfigError(
+                    "群星杯当日投递状态无效",
+                    code="scheduler_state_invalid",
+                ) from exc
+            summary["scheduler_state"] = {
+                "checked": True,
+                "run_id": reconciled.run_id,
+                "status": reconciled.status,
+                "error_code": reconciled.error_code,
+            }
             try:
                 loaded = snapshot_loader()
             except StarsCupSnapshotUnavailable as exc:

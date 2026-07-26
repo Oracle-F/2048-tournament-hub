@@ -130,8 +130,10 @@ Intent 和 API facade。若群星杯定时开关已打开，还会重新验证 l
 配额、连接、超时或锁冲突按配置间隔重试；配置、契约、产物校验、权限拒绝、
 关系拒收和未知回执等状态同日不盲重试。
 Fedora systemd 的未启用模板见
-`deploy/systemd/official-qq-bot.service.example`，其中路径和服务账号都是
-占位符，当前没有安装、enable 或 start。
+`deploy/systemd/official-qq-bot.service.example`。模板会先运行离线
+`--preflight`，核验 SDK、快照/榜图哈希和当日持久投递状态，只有通过才执行
+真实 `--start`。其中路径和服务账号都是占位符，当前没有安装、enable 或
+start。
 
 ## 上线与回滚门
 

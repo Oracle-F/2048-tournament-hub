@@ -56,6 +56,8 @@ First-party sources:
 - Daily scheduling has a separate disabled-by-default flag and target.
 - SDK preflight creates/closes the real client but never calls `run`.
 - Snapshot and both image hashes can be checked without login/network.
+- Preflight reports current-day durable delivery reconciliation and rejects invalid state without exposing the target or filesystem paths.
+- The uninstalled systemd example gates `--start` behind the same offline preflight.
 - Local inbound files are bounded and atomically published.
 - OneBot entrypoint/lifecycle remains independent and runnable.
 
