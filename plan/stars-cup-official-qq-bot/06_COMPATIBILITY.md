@@ -22,11 +22,11 @@ No offline result can satisfy level 3.
 | 成绩提交 | toggle/business tests | disabled gate + enabled fixture | Offline complete, disabled | explicit enablement decision |
 | `floor`/`finish` 回放 | flow/download tests | complete official attachment fixture | Offline complete | authorized small-file canary |
 | 管理员命令 | admin gate tests | denial + injected read-only help fixture | Offline complete | approved official OpenID and read-only canary |
-| `赛事` | existing business cases | generic dispatch only | Partial | dedicated official C2C fixture |
-| `我的报名` | existing business cases | generic dispatch only | Partial | bound official C2C fixture |
-| `我的成绩` + `更多` | business pagination cases | generic mapping only | Partial | multi-event official C2C fixture |
-| `我的档案` | existing business cases | generic dispatch only | Partial | bound official C2C fixture |
-| 关系事件 | none required in business | intent subscribes but callbacks absent | Missing | map/persist six events and gate proactive sends |
+| `赛事` | existing business cases | dedicated official C2C fixture | Offline complete | authorized C2C canary |
+| `我的报名` | existing business cases | bound official C2C fixture | Offline complete | authorized C2C canary |
+| `我的成绩` + `更多` | business pagination cases | 11-event two-page official C2C fixture | Offline complete | authorized C2C canary |
+| `我的档案` | existing business cases | bound official C2C fixture | Offline complete | authorized C2C canary |
+| 关系事件 | transport-local state only | six callbacks, redacted state and pre-send gate | Offline complete | observe real relationship events |
 | 回复/引用/图片/文件 | neutral contracts | msg_id/msg_seq/reference/upload tests | Offline complete | real receipt/audit evidence |
 | NapCat/OneBot watchdog | OneBot tests | intentionally none | Retained rollback | never share with official runtime |
 
@@ -41,7 +41,7 @@ No offline result can satisfy level 3.
 | Proactive group | verified bot 60 qpm, one relationship 20 qpm, 1000/day/group; unverified bot 30 qpm | two-image workflow is well below limits; real tier/permission `UNKNOWN` |
 | Duplicate replies | same `msg_id` may be reused with distinct `msg_seq` | ordered text/attachment sequence implemented |
 | Rich media | upload in exact C2C/group scene, then send `msg_type=7`; `file_info` expires | URL/public upload and local chunk flow implemented offline |
-| Opt-out/relationship | user/group can reject proactive messages; add/remove/receive/reject events are emitted | response errors classified; lifecycle callbacks still missing |
+| Opt-out/relationship | user/group can reject proactive messages; add/remove/receive/reject events are emitted | six callbacks persist redacted target state and block rejected/removed sends |
 | Review/deployment | platform review/permission and a continuously connected runtime are external | no platform/deployment mutation performed |
 
 First-party sources:
@@ -60,11 +60,11 @@ First-party sources:
 - OneBot entrypoint/lifecycle remains independent and runnable.
 
 ## Known evidence gaps
-- Current preflight says local checks passed but does not enumerate external platform items as `UNKNOWN`.
-- Relationship events are subscribed by intent but not handled by client callbacks.
-- Escaped scheduler exceptions are all retryable; permanent failures can loop.
-- Scheduler process memory is not explicitly reconciled from durable delivery state on startup.
-- Four low-risk read-only views lack dedicated official C2C end-to-end fixtures.
+- Platform review, actual Intent/rich-media permission and target relationship remain
+  `UNKNOWN` until observed from an authorized runtime/platform inspection.
+- No passive or proactive path has a real QQ receipt or audit result.
+- Deployment host, service account, writable state paths and sustained WebSocket
+  connectivity remain unverified.
 
 ## Real validation order
 1. Group-@ `/群星杯` passive text with schedule disabled.

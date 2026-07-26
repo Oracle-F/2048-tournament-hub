@@ -11,7 +11,7 @@
 - 不修改 event_hub、计分、Verse 缓存算法、快照 schema 或榜图布局。
 
 ## Acceptance criteria
-- 基础测试 12/12、Bot 47/47、`tests/run_all.py --fast` 和官方适配专项测试保持通过。
+- 基础测试命令 15/15、Bot 47/47、`tests/run_all.py --fast` 和官方适配专项测试保持通过。
 - `qq-botpy==1.2.1` 离线 preflight 验证 SDK、`1<<25` intent、API facade 和当前榜图哈希。
 - preflight 对平台侧权限、审核、机器人入群、主动消息许可输出 `UNKNOWN`，不得输出 OpenID/密钥。
 - 生命周期事件使用 SDK 实际字段：群 `group_openid`，私聊 `openid`；仅持久化目标摘要与状态。

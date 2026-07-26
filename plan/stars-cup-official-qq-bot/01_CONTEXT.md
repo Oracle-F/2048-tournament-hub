@@ -4,7 +4,7 @@
 - 可直接控制：本地源码、`data/testing.db`、离线测试、公开资料核验、不可变导出、Git 分支与远端同步。
 - 不可直接确认：官方应用审核/权限、真实凭据、群 OpenID、机器人关系状态、主动消息开关、真实频控和部署网络。
 - 未经授权不得登录真实 QQ、发送消息、修改开放平台/群设置、启用服务或写入真实配置。
-- 当前分支 `codex/stars-cup-bot-prep-20260727` 已与远端同步到 `23fd1e7`。
+- 当前分支 `codex/stars-cup-bot-prep-20260727` 按小提交持续与远端同步；提交号以 `git log` 为准。
 - 工作树有用户未跟踪文件；不得纳入提交、删除或覆盖。
 
 ## Implemented architecture
@@ -37,7 +37,7 @@
 | 图片/文件 | scene-specific 上传后以 `msg_type=7` 发送；`file_info` 有时效 | C2C/群分别上传，本地文件走分片 facade |
 | 引用/多回复 | `message_reference`、同一 `msg_id` 配不同 `msg_seq` | DTO 保存 reference，序号单调递增 |
 | 事件订阅 | WebSocket 或 Webhook；`GROUP_AND_C2C_EVENT=1<<25` | 当前 WebSocket + `public_messages=True` |
-| 关系变化 | 加/退群、接受/拒收主动消息、加/删好友 | 当前尚未接 callback；下个离线批次补齐目标状态 |
+| 关系变化 | 加/退群、接受/拒收主动消息、加/删好友 | 六类当前 callback 已接入；目标状态哈希持久化并门禁主动发送 |
 | 审核/权限 | 特殊 intent 需平台授权；未授权可导致连接关闭 | preflight 只能验本地配置，平台项一律 `UNKNOWN` |
 
 Official sources:
@@ -55,14 +55,13 @@ Official sources:
 - 以上不得进入官方 adapter；canary 验收前不清理。
 
 ## Verified local baseline
-- 12 项基础测试通过；Bot 47/47；快速全量 `TOTAL PASS`。
-- 全量 unittest 185 项通过；`pip check` 通过。
+- 基础命令由历史 12 项增至 15 项并全部通过；Bot 47/47；快速全量 `TOTAL PASS`。
+- 全量 unittest 209 项通过；`pip check` 通过。
 - 实际安装 `qq-botpy==1.2.1` 的离线 preflight 已用当前 snapshot/两图通过。
 - 官方路由已有群星杯、帮助图、绑定/解绑、报名/取消、预约、看板、Verse、成绩门禁、管理员、回放流程夹具。
 
-## Remaining offline gaps
-- 六类 `public_messages` 关系事件未接入；SDK 1.2.1 群事件字段为 `group_openid`，C2C 为 `openid`。
-- 调度器捕获任意异常后均按 retryable 处理，配置/产物永久错误可能无限重试。
-- `_completed_date`/retry deadline 只在内存；delivery JSON 可防重发，但启动 reconciliation 未显式报告。
-- preflight 尚未逐项输出平台权限、关系、主动消息与审核为 `UNKNOWN`。
-- 低风险只读命令和分页已有业务覆盖，但缺少明确的官方 C2C 端到端夹具。
+## Remaining gates
+- 离线实现缺口已按 `05_TODO.md` 完成；命名的旧功能均有官方事件链路证据。
+- 平台审核、实际 Intent/富媒体权限、目标关系和真实回执只能由授权后的平台检查或 canary 证明。
+- 正式发送时间、部署主机、服务账号、可写目录和持续 WebSocket 连通性仍需用户确认。
+- 成绩提交保持默认关闭；是否在隔离测试赛事启用属于后续显式产品/权限决定。

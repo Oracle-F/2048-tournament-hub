@@ -874,6 +874,145 @@ class OfficialQQAppTests(IsolatedAsyncioTestCase):
         self.assertEqual(outcome.inbound.attachments[0].kind, "file")
         self.assertEqual(outcome.receipts[0].status, "sent")
 
+    async def test_read_only_views_and_score_pagination_cross_official_route(self):
+        api = FakeApi()
+        user_openid = "official-read-only-user"
+        flow_key = "qq_official:{}".format(user_openid)
+        bot_business.PENDING_FLOWS.pop(flow_key, None)
+        try:
+            with fresh_test_connection() as connection:
+                player_id = self._seed_bound_user(
+                    connection,
+                    user_openid=user_openid,
+                    account_key="official_read_only_user",
+                    base_id=996000,
+                )
+                for index in range(1, 12):
+                    event_id = 996100 + index
+                    event_code = "OFFICIAL_READ_{:02d}".format(index)
+                    event_name = "Official Read Only Event {:02d}".format(
+                        index
+                    )
+                    hour = index - 1
+                    connection.execute(
+                        """
+                        INSERT INTO events (
+                            id, event_code, event_name, platform_id,
+                            variant_id, event_type, competition_type,
+                            status, is_official, is_rated, start_time,
+                            end_time, created_at, updated_at
+                        )
+                        VALUES (
+                            ?, ?, ?,
+                            (SELECT id FROM platforms
+                             WHERE code = '2048verse'),
+                            (SELECT id FROM variants WHERE code = '4x4'),
+                            'single_attempt', 'classic_raw_score',
+                            'finished', 1, 0, ?, ?,
+                            '2026-07-26 00:00:00',
+                            '2026-07-26 00:00:00'
+                        )
+                        """,
+                        (
+                            event_id,
+                            event_code,
+                            event_name,
+                            "2026-07-26 {:02d}:00:00".format(hour),
+                            "2026-07-26 {:02d}:30:00".format(hour),
+                        ),
+                    )
+                    connection.execute(
+                        """
+                        INSERT INTO registrations (
+                            id, event_id, player_id, registered_via,
+                            status, metadata_json, registered_at
+                        )
+                        VALUES (
+                            ?, ?, ?, 'official_fixture', 'active', '{}',
+                            '2026-07-26 00:00:00'
+                        )
+                        """,
+                        (996200 + index, event_id, player_id),
+                    )
+
+                events = await process_official_event(
+                    connection,
+                    event_type="C2C_MESSAGE_CREATE",
+                    event=self._event(
+                        content="赛事",
+                        user_openid=user_openid,
+                    ),
+                    transport=OfficialQQTransport(api),
+                )
+                registrations = await process_official_event(
+                    connection,
+                    event_type="C2C_MESSAGE_CREATE",
+                    event=self._event(
+                        content="我的报名",
+                        user_openid=user_openid,
+                    ),
+                    transport=OfficialQQTransport(api),
+                )
+                profile = await process_official_event(
+                    connection,
+                    event_type="C2C_MESSAGE_CREATE",
+                    event=self._event(
+                        content="我的档案",
+                        user_openid=user_openid,
+                    ),
+                    transport=OfficialQQTransport(api),
+                )
+                first_scores = await process_official_event(
+                    connection,
+                    event_type="C2C_MESSAGE_CREATE",
+                    event=self._event(
+                        content="我的成绩",
+                        user_openid=user_openid,
+                    ),
+                    transport=OfficialQQTransport(api),
+                )
+                next_scores = await process_official_event(
+                    connection,
+                    event_type="C2C_MESSAGE_CREATE",
+                    event=self._event(
+                        content="更多",
+                        user_openid=user_openid,
+                    ),
+                    transport=OfficialQQTransport(api),
+                )
+
+            self.assertTrue(events.reply.text.startswith("可用赛事\n"))
+            self.assertIn("我的报名", registrations.reply.text)
+            self.assertIn(
+                "Official Read Only Event 11",
+                registrations.reply.text,
+            )
+            self.assertIn("选手档案", profile.reply.text)
+            self.assertIn("official_read_only_user", profile.reply.text)
+            self.assertIn("我的成绩", first_scores.reply.text)
+            self.assertIn("已显示 10/11 条。", first_scores.reply.text)
+            self.assertIn(
+                "回复“更多”查看下一页。",
+                first_scores.reply.text,
+            )
+            self.assertIn("已显示 11/11 条。", next_scores.reply.text)
+            self.assertIn(
+                "Official Read Only Event 01",
+                next_scores.reply.text,
+            )
+            self.assertEqual(len(api.calls), 5)
+            self.assertTrue(
+                all(call["openid"] == user_openid for call in api.calls)
+            )
+            self.assertTrue(
+                all(call["msg_id"] == "incoming" for call in api.calls)
+            )
+            self.assertTrue(
+                all(call["msg_type"] == 0 for call in api.calls)
+            )
+        finally:
+            bot_business.PENDING_FLOWS.pop(flow_key, None)
+
     async def test_real_private_floor_and_finish_flow_completes_offline(self):
         api = FakeApi()
         user_openid = "official-floor-finish-user"

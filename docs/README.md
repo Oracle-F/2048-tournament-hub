@@ -36,6 +36,14 @@
 - 群星杯每日任务另有独立开关，默认关闭。它只在官方网关 ready 后启动，
   通过现有不可变导出、哈希校验和逐图投递状态发送两张图片；榜图生成或
   发送失败不会修改比赛数据库或阻塞 OneBot 路径。
+- 官方群关系事件独立于消息业务处理：加群、退群、接受或拒收主动消息只
+  更新 `data/tmp/stars_cup_bot/official_target_relationship.json`。
+  该文件只保存目标 OpenID 的 SHA-256 摘要、状态、事件类型和时间；不会
+  保存原始 OpenID，也不会打开赛事 SQLite。状态记录为退群或拒收时，日榜
+  调度器会在查询、导出和发送前终止。
+- 调度器启动后先核对当日逐图投递状态：两图均成功时不再导出或发送；
+  `unknown`、发送中断和终态失败不盲重试；仅部分成功或可重试失败继续走
+  现有哈希验证及逐图跳过逻辑。
 - 官方稳定 PyPI 包 `qq-botpy==1.2.1` 锁定在独立的
   `requirements-official-qq.txt`，不会强加给 OneBot-only 环境。2026-07
   分片上传接口与 SDK 的版本差异继续集中在
@@ -97,7 +105,9 @@
 
 安装 SDK 后可执行更强的离线 preflight；它会构造并关闭真实 Client、核对
 Intent 和 API facade。若群星杯定时开关已打开，还会重新验证 latest
-快照与两张榜图哈希，但仍不登录或联网：
+快照与两张榜图哈希，但仍不登录或联网。输出中的
+`platform_readiness` 会把应用审核、Intent 实际授权、富媒体权限和真实
+回执保持为 `UNKNOWN`；本地 intent 数值通过不代表平台已经授权：
 
 ```bash
 ./.venv/bin/python scripts/run_official_qq_bot.py --preflight
@@ -114,9 +124,11 @@ Intent 和 API facade。若群星杯定时开关已打开，还会重新验证 l
 - `OFFICIAL_QQ_STARS_CUP_SCHEDULE_ENABLED=true`
 - `OFFICIAL_QQ_STARS_CUP_GROUP_OPENID=<获准测试群或正式群 OpenID>`
 - `OFFICIAL_QQ_STARS_CUP_SEND_TIME=HH:MM`（新加坡时区）
+- `OFFICIAL_QQ_STARS_CUP_RELATIONSHIP_STATE_PATH=<可写的私有状态路径>`
 
 调度器在指定时间后执行一次；同日重启会复用已发布导出和逐图投递状态。
-配额或暂时性失败按配置间隔重试；权限拒绝、未知回执等状态同日不盲重试。
+配额、连接、超时或锁冲突按配置间隔重试；配置、契约、产物校验、权限拒绝、
+关系拒收和未知回执等状态同日不盲重试。
 Fedora systemd 的未启用模板见
 `deploy/systemd/official-qq-bot.service.example`，其中路径和服务账号都是
 占位符，当前没有安装、enable 或 start。
