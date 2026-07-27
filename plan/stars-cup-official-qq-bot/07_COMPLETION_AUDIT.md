@@ -30,6 +30,7 @@ login, send or platform inspection occurred.
 | systemd environment handoff is safe | entrypoint/template test | official-only variables, blank secrets, sandbox on, runtime/schedule off | Confirmed as template |
 | Runtime evidence is journal-visible by default | entrypoint logging tests | start-only forced INFO handler; DEBUG/invalid values blocked before network | Confirmed offline |
 | Clean gateway exit is recoverable | unit template test and static parse | `Restart=always`, 15-second delay, 5 starts per 5 minutes | Confirmed as template |
+| Fresh deployment inputs are explicit | `deploy/systemd/README.md`, defaults and Git index | production DB/roster/background/latest are external; first snapshot is generated before enabled preflight | Confirmed as runbook |
 | Real QQ permissions exist | no platform access/authorization | no external evidence | UNKNOWN |
 | Target bot is in group and accepts active messages | relationship callbacks/state exist, but no authorized runtime event was observed | offline code cannot prove current platform state | UNKNOWN |
 | Real platform accepts both images | no authorized send | fake receipts only | UNKNOWN |
@@ -69,6 +70,10 @@ login, send or platform inspection occurred.
     capture; offline modes remain clean and DEBUG is rejected before network.
 12. The unit now restarts an unexpectedly clean SDK-loop exit as well as a
     failure, while `StartLimit*` bounds repeated automatic starts.
+13. The deployment runbook now makes the repository boundary explicit: a fresh
+    clone does not contain the production DB, formal roster, sibling background
+    or prior latest artifacts, so the first no-send daily export must precede
+    an enabled scheduler preflight.
 
 ## Safety conclusion
 

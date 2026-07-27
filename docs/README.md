@@ -162,6 +162,10 @@ sudo install -o root -g eventbot -m 0640 \
 
 仓库内模板不得填写真实值；安装副本仍保持 `OFFICIAL_QQ_BOT_ENABLED=false`
 和 `OFFICIAL_QQ_STARS_CUP_SCHEDULE_ENABLED=false`，直到相应 canary 阶段。
+完整的部署输入边界和首次 latest 快照 bootstrap 顺序见
+`deploy/systemd/README.md`。Git 克隆不包含正式 SQLite、正式名单、工作区外
+背景图或历史榜图；全新部署必须先单独传入这些输入，并在不开启 QQ 网关的
+情况下生成、校验首份 latest 产物。
 
 ## 上线与回滚门
 
