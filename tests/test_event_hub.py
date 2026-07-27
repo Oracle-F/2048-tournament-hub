@@ -254,6 +254,20 @@ class EventHubRosterTests(TestCase):
             )
         self.assertEqual(fetch.call_count, 2)
 
+    def test_missing_start_is_retained_as_manual_audit_candidate(self):
+        game = {
+            "id": "missing-start",
+            "score": 123456,
+            "played_at": "2026-07-27T01:00:00+08:00",
+            "board": [[2, 4], [8, 16]],
+        }
+
+        record = event_hub._verse_game_record(game)
+
+        self.assertIsNotNone(record)
+        self.assertEqual(record["started_at"], game["played_at"])
+        self.assertEqual(record["ended_at"], game["played_at"])
+
     def test_in_window_game_with_broken_board_fails_instead_of_silently_disappearing(self):
         game = {
             "id": "broken-game",
@@ -400,6 +414,108 @@ class EventHubRosterTests(TestCase):
                 "2026-08-02T18:00:00+08:00",
             )
 
+    def test_excluded_live_records_stay_filtered_on_later_queries(self):
+        roster = _small_live_roster()
+        first_record = _normalized_record("game-1", "2026-08-02T12:00:00+08:00")
+        second_record = _normalized_record("game-2", "2026-08-02T17:00:00+08:00")
+        with tempfile.TemporaryDirectory(prefix="event-hub-exclusions-") as directory:
+            cache_path = Path(directory) / "live-cache.json"
+            cache = event_hub._empty_live_cache(roster["competition"])
+            cache["last_successful_query_at"] = "2026-08-02T12:00:00+08:00"
+            cache["excluded_records"] = [
+                {
+                    "record_id": "game-1",
+                    "username": "FastUser",
+                    "score": 123456,
+                    "reason": "started_before_event",
+                }
+            ]
+            cache["players"] = {
+                "fastuser": {"username": "FastUser", "records": [first_record]}
+            }
+            cache_path.write_text(event_hub.json.dumps(cache), encoding="utf-8")
+
+            with patch(
+                "event_hub._fetch_one_live_player_records",
+                return_value=[first_record, second_record],
+            ):
+                records, _query = _query_live_records_from_roster(
+                    roster,
+                    cache_path=cache_path,
+                    workers=1,
+                    now=event_hub._parse_event_datetime("2026-08-02T18:00:00+08:00"),
+                )
+
+            self.assertEqual([item["record_id"] for item in records["fastuser"]], ["game-2"])
+            saved = event_hub.json.loads(cache_path.read_text(encoding="utf-8"))
+            self.assertEqual(
+                [entry["record_id"] for entry in saved["excluded_records"]],
+                ["game-1"],
+            )
+
+    def test_excluded_records_are_normalized_and_persisted(self):
+        roster = _small_live_roster()
+        first_record = _normalized_record("game-1", "2026-08-02T12:00:00+08:00")
+        second_record = _normalized_record("game-2", "2026-08-02T17:00:00+08:00")
+        with tempfile.TemporaryDirectory(prefix="event-hub-exclusions-normalize-") as directory:
+            cache_path = Path(directory) / "live-cache.json"
+            cache = event_hub._empty_live_cache(roster["competition"])
+            cache["last_successful_query_at"] = "2026-08-02T12:00:00+08:00"
+            cache["excluded_records"] = [
+                {"record_id": "game-1", "reason": "started_before_event"},
+                {"record_id": "game-1", "reason": "duplicate"},
+                {"reason": "missing-id"},
+                None,
+                {"record_id": "game-2", "reason": "unverified-start"},
+                {"record_id": "game-2", "reason": "duplicate"},
+            ]
+            cache["players"] = {
+                "fastuser": {"username": "FastUser", "records": [first_record]}
+            }
+            cache_path.write_text(event_hub.json.dumps(cache), encoding="utf-8")
+
+            with patch(
+                "event_hub._fetch_one_live_player_records",
+                return_value=[first_record, second_record],
+            ):
+                records, _query = _query_live_records_from_roster(
+                    roster,
+                    cache_path=cache_path,
+                    workers=1,
+                    now=event_hub._parse_event_datetime("2026-08-02T18:00:00+08:00"),
+                )
+
+            self.assertEqual(records["fastuser"], [])
+            saved = event_hub.json.loads(cache_path.read_text(encoding="utf-8"))
+            self.assertEqual(
+                saved["excluded_records"],
+                [
+                    {"record_id": "game-1", "reason": "started_before_event"},
+                    {"record_id": "game-2", "reason": "unverified-start"},
+                ],
+            )
+
+    def test_excluded_live_records_are_filtered_when_loading_export_cache(self):
+        roster = _small_live_roster()
+        cache = event_hub._empty_live_cache(roster["competition"])
+        cache["last_successful_query_at"] = "2026-08-02T18:00:00+08:00"
+        cache["excluded_records"] = [{"record_id": "game-1"}]
+        cache["players"] = {
+            "fastuser": {
+                "username": "FastUser",
+                "records": [
+                    _normalized_record("game-1", "2026-08-02T12:00:00+08:00"),
+                    _normalized_record("game-2", "2026-08-02T17:00:00+08:00"),
+                ],
+            }
+        }
+        with tempfile.TemporaryDirectory(prefix="event-hub-export-exclusions-") as directory:
+            cache_path = Path(directory) / "live-cache.json"
+            cache_path.write_text(event_hub.json.dumps(cache), encoding="utf-8")
+            records, _cache = _load_cached_live_records(roster, cache_path)
+
+        self.assertEqual([item["record_id"] for item in records["fastuser"]], ["game-2"])
+
     def test_failed_refresh_does_not_replace_last_complete_cache(self):
         roster = _small_live_roster()
         record = _normalized_record("game-1", "2026-08-02T12:00:00+08:00")
@@ -473,6 +589,27 @@ class EventHubRosterTests(TestCase):
 
             with self.assertRaisesRegex(ValueError, "缺少或损坏"):
                 _load_cached_live_records(roster, cache_path)
+
+    def test_incompatible_v3_cache_is_not_reused_by_schema2_reader(self):
+        roster = _small_live_roster()
+        cache = event_hub._empty_live_cache(roster["competition"])
+        cache["schema_version"] = 3
+        cache["last_successful_query_at"] = "2026-08-02T18:00:00+08:00"
+        cache["players"] = {
+            "fastuser": {
+                "username": "FastUser",
+                "records": [_normalized_record("strict-v3", "2026-08-02T12:00:00+08:00")],
+            }
+        }
+        with tempfile.TemporaryDirectory(prefix="event-hub-cache-v3-") as directory:
+            cache_path = Path(directory) / "live-cache.json"
+            cache_path.write_text(event_hub.json.dumps(cache), encoding="utf-8")
+
+            loaded = event_hub._load_live_cache(cache_path, roster["competition"])
+
+        self.assertEqual(loaded["schema_version"], event_hub.LIVE_CACHE_SCHEMA_VERSION)
+        self.assertEqual(loaded["last_successful_query_at"], "")
+        self.assertEqual(loaded["players"], {})
 
     def test_xlsx_import_requires_six_teams_and_one_player_per_tier(self):
         with tempfile.TemporaryDirectory(prefix="event-hub-roster-") as directory:

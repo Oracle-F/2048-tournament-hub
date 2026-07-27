@@ -555,9 +555,10 @@ def _verse_game_record(game: dict) -> dict | None:
         if game.get(key):
             started_at = game[key]
             break
-    # The original scorer accepts a game with no start timestamp when its
-    # played_at is inside the competition window.  Preserve that behavior so
-    # the leaderboard does not silently disagree with the working scorer.
+    # Verse may omit a start timestamp.  Keep the existing end-time candidate
+    # behavior so the leaderboard remains compatible with the working scorer,
+    # but do not treat the fallback as proof that the game started in-window;
+    # human review must record any confirmed/unsupported exclusion below.
     started_at = started_at or ended_at
     return {
         "record_id": game.get("id"),
@@ -757,7 +758,39 @@ def _empty_live_cache(competition: dict) -> dict:
         "updated_at": "",
         "last_successful_query_at": "",
         "query_history": [],
+        "excluded_records": [],
         "players": {},
+    }
+
+
+def _normalize_excluded_records(value) -> list[dict]:
+    """Return a stable, de-duplicated list of manually excluded API records."""
+
+    if not isinstance(value, list):
+        return []
+    normalized = []
+    seen = set()
+    for entry in value:
+        if not isinstance(entry, dict):
+            continue
+        record_id = entry.get("record_id")
+        if record_id in (None, ""):
+            continue
+        identity = str(record_id)
+        if identity in seen:
+            continue
+        seen.add(identity)
+        item = dict(entry)
+        item["record_id"] = record_id
+        normalized.append(item)
+    return normalized
+
+
+def _excluded_record_ids(value) -> set[str]:
+    return {
+        str(entry["record_id"])
+        for entry in _normalize_excluded_records(value)
+        if entry.get("record_id") not in (None, "")
     }
 
 
@@ -780,6 +813,7 @@ def _upgrade_live_cache(payload: dict, expected: dict) -> dict | None:
         **expected,
         "updated_at": str(payload.get("updated_at") or last_query),
         "last_successful_query_at": last_query,
+        "excluded_records": _normalize_excluded_records(payload.get("excluded_records")),
         "players": players,
     }
     if last_query:
@@ -829,6 +863,7 @@ def _load_live_cache(path: Path | None, competition: dict) -> dict:
         return expected
     if not isinstance(payload.get("query_history"), list):
         payload["query_history"] = []
+    payload["excluded_records"] = _normalize_excluded_records(payload.get("excluded_records"))
     return payload
 
 
@@ -858,10 +893,15 @@ def _merge_live_records(
     refreshed: list[dict],
     event_start: datetime,
     event_end: datetime,
+    excluded_record_ids: set[str] | None = None,
 ) -> list[dict]:
     merged = {}
+    excluded = {str(value) for value in (excluded_record_ids or set())}
     for record in [*(cached or []), *(refreshed or [])]:
         if not isinstance(record, dict):
+            continue
+        record_id = record.get("record_id")
+        if record_id not in (None, "") and str(record_id) in excluded:
             continue
         ended_at = _record_end_time(record)
         if ended_at is None or ended_at < event_start or ended_at > event_end:
@@ -936,6 +976,7 @@ def _save_live_cache(
         "updated_at": query_entry["query_completed_at"],
         "last_successful_query_at": query_entry["range_end"],
         "query_history": history,
+        "excluded_records": _normalize_excluded_records(previous_cache.get("excluded_records")),
         "players": {
             key: {
                 "username": usernames[key],
@@ -993,8 +1034,17 @@ def _load_cached_live_records(
                 "、".join(invalid[:5]),
             )
         )
+    excluded_record_ids = _excluded_record_ids(cache.get("excluded_records"))
     records = {
-        key: list(cached_players[key].get("records") or [])
+        key: [
+            record
+            for record in list(cached_players[key].get("records") or [])
+            if not (
+                isinstance(record, dict)
+                and record.get("record_id") not in (None, "")
+                and str(record.get("record_id")) in excluded_record_ids
+            )
+        ]
         for key in usernames
     }
     return records, cache
@@ -1067,6 +1117,7 @@ def _query_live_records_from_roster(
     if workers < 1 or workers > LIVE_FETCH_MAX_WORKERS:
         raise ValueError("并发数必须在 1–{} 之间".format(LIVE_FETCH_MAX_WORKERS))
     cache = _load_live_cache(cache_path, competition)
+    excluded_record_ids = _excluded_record_ids(cache.get("excluded_records"))
     query_started = (now or datetime.now(LOCAL_TIMEZONE)).astimezone(LOCAL_TIMEZONE)
     query_start, query_end, mode = _select_live_query_window(
         cache,
@@ -1110,7 +1161,13 @@ def _query_live_records_from_roster(
                 completed += 1
                 try:
                     refreshed = future.result()
-                    normalized = _merge_live_records(cached_records, refreshed, start, query_end)
+                    normalized = _merge_live_records(
+                        cached_records,
+                        refreshed,
+                        start,
+                        query_end,
+                        excluded_record_ids=excluded_record_ids,
+                    )
                 except Exception as exc:
                     batch_failures.append((task, str(exc)))
                     print(
