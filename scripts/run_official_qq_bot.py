@@ -24,6 +24,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from bot_official_qq.runtime import (  # noqa: E402
     OfficialRuntimeConfig,
     OfficialRuntimeConfigError,
+    check_official_qq_local_readiness,
     preflight_official_qq_bot,
     run_official_qq_bot,
 )
@@ -69,11 +70,57 @@ def main(argv: list[str] | None = None) -> int:
         help="显式执行默认的只读配置检查（不导入 SDK、不联网）",
     )
     action.add_argument(
+        "--check-local",
+        action="store_true",
+        help="不要求启用标志或凭据，只读检查本地文件和目录",
+    )
+    action.add_argument(
         "--preflight",
         action="store_true",
         help="离线构造 SDK 并校验群星杯产物；不登录、不联网",
     )
     args = parser.parse_args(argv)
+    if args.check_local:
+        try:
+            summary = check_official_qq_local_readiness()
+        except OfficialRuntimeConfigError as exc:
+            print(
+                json.dumps(
+                    {
+                        "status": "blocked",
+                        "code": exc.code,
+                        "error": str(exc),
+                        "network_started": False,
+                    },
+                    ensure_ascii=False,
+                ),
+                file=sys.stderr,
+            )
+            return 2
+        except Exception as exc:
+            print(
+                json.dumps(
+                    {
+                        "status": "failed",
+                        "error_type": type(exc).__name__,
+                        "network_started": False,
+                    },
+                    ensure_ascii=False,
+                ),
+                file=sys.stderr,
+            )
+            return 1
+        print(
+            json.dumps(
+                {
+                    "status": "local_ready",
+                    **summary,
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+        return 0
     try:
         config = OfficialRuntimeConfig.from_environment()
     except OfficialRuntimeConfigError as exc:

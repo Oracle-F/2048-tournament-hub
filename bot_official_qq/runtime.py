@@ -416,6 +416,60 @@ def build_local_storage_readiness(
     return summary
 
 
+def check_official_qq_local_readiness(
+    environment: Mapping[str, str] | None = None,
+    *,
+    storage_probe=build_local_storage_readiness,
+) -> dict[str, Any]:
+    """Check local runtime files without requiring credentials or an SDK."""
+
+    values = os.environ if environment is None else environment
+    raw_database_path = str(
+        values.get("OFFICIAL_QQ_DATABASE_PATH", "")
+    ).strip()
+    database_path = (
+        Path(raw_database_path).expanduser()
+        if raw_database_path
+        else DATABASE_PATH
+    ).resolve()
+    if not database_path.is_file():
+        raise OfficialRuntimeConfigError(
+            "官方 QQ Bot 数据库不存在",
+            code="database_missing",
+        )
+    schedule_requested = _env_flag(
+        values,
+        "OFFICIAL_QQ_STARS_CUP_SCHEDULE_ENABLED",
+        default=False,
+    )
+    raw_relationship_state_path = str(
+        values.get(
+            "OFFICIAL_QQ_STARS_CUP_RELATIONSHIP_STATE_PATH",
+            "",
+        )
+    ).strip()
+    relationship_state_path = (
+        Path(raw_relationship_state_path).expanduser()
+        if raw_relationship_state_path
+        else DEFAULT_OFFICIAL_TARGET_STATE_PATH
+    ).resolve()
+    local_config = OfficialRuntimeConfig(
+        enabled=False,
+        app_id="",
+        app_secret="",
+        database_path=database_path,
+        stars_cup_schedule_enabled=schedule_requested,
+        stars_cup_relationship_state_path=relationship_state_path,
+    )
+    return {
+        "network_started": False,
+        "credentials_checked": False,
+        "sdk_checked": False,
+        "stars_cup_schedule_requested": schedule_requested,
+        "local_storage": storage_probe(local_config),
+    }
+
+
 class OfficialQQEventRunner:
     """Open one short-lived SQLite connection per inbound event."""
 

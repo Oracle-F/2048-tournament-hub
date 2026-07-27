@@ -140,6 +140,94 @@ class OfficialQQEntrypointTests(TestCase):
         run.assert_not_called()
         self.assertIn('"network_started": false', error.getvalue())
 
+    def test_local_check_needs_no_enable_flag_credentials_or_sdk(self):
+        with TemporaryDirectory() as temp_dir:
+            database = Path(temp_dir) / "bot.sqlite3"
+            database.touch()
+            output = io.StringIO()
+            with patch.dict(
+                "os.environ",
+                {"OFFICIAL_QQ_DATABASE_PATH": str(database)},
+                clear=True,
+            ), patch.object(
+                entrypoint,
+                "check_official_qq_local_readiness",
+                return_value={
+                    "network_started": False,
+                    "credentials_checked": False,
+                    "sdk_checked": False,
+                    "local_storage": {
+                        "database": {"checked": True},
+                    },
+                },
+            ) as local_check, patch.object(
+                entrypoint.OfficialRuntimeConfig,
+                "from_environment",
+            ) as load_runtime_config, patch.object(
+                entrypoint,
+                "preflight_official_qq_bot",
+            ) as preflight, patch.object(
+                entrypoint,
+                "run_official_qq_bot",
+            ) as run, patch("sys.stdout", output):
+                result = runtime_main(["--check-local"])
+
+        self.assertEqual(result, 0)
+        local_check.assert_called_once()
+        load_runtime_config.assert_not_called()
+        preflight.assert_not_called()
+        run.assert_not_called()
+        rendered = output.getvalue()
+        self.assertIn('"status": "local_ready"', rendered)
+        self.assertIn('"network_started": false', rendered)
+
+    def test_local_check_redacts_unexpected_exception(self):
+        error = io.StringIO()
+        with patch.dict("os.environ", {}, clear=True), patch.object(
+            entrypoint,
+            "check_official_qq_local_readiness",
+            side_effect=RuntimeError(
+                "private-app-secret /internal/private/path"
+            ),
+        ), patch.object(
+            entrypoint.OfficialRuntimeConfig,
+            "from_environment",
+        ) as load_runtime_config, patch("sys.stderr", error):
+            result = runtime_main(["--check-local"])
+
+        rendered = error.getvalue()
+        self.assertEqual(result, 1)
+        load_runtime_config.assert_not_called()
+        self.assertIn('"status": "failed"', rendered)
+        self.assertIn('"error_type": "RuntimeError"', rendered)
+        self.assertIn('"network_started": false', rendered)
+        self.assertNotIn("private-app-secret", rendered)
+        self.assertNotIn("/internal/private/path", rendered)
+        self.assertNotIn("Traceback", rendered)
+
+    def test_local_check_preserves_known_failure_code(self):
+        error = io.StringIO()
+        with patch.dict("os.environ", {}, clear=True), patch.object(
+            entrypoint,
+            "check_official_qq_local_readiness",
+            side_effect=entrypoint.OfficialRuntimeConfigError(
+                "官方 QQ Bot 数据库不存在",
+                code="database_missing",
+            ),
+        ), patch.object(
+            entrypoint.OfficialRuntimeConfig,
+            "from_environment",
+        ) as load_runtime_config, patch("sys.stderr", error):
+            result = runtime_main(["--check-local"])
+
+        rendered = error.getvalue()
+        self.assertEqual(result, 2)
+        load_runtime_config.assert_not_called()
+        self.assertIn('"status": "blocked"', rendered)
+        self.assertIn('"code": "database_missing"', rendered)
+        self.assertIn('"network_started": false', rendered)
+        self.assertNotIn("Traceback", rendered)
+
     def test_preflight_delegates_without_starting_runtime(self):
         with TemporaryDirectory() as temp_dir:
             database = Path(temp_dir) / "bot.sqlite3"

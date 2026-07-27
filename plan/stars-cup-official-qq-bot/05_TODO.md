@@ -41,6 +41,7 @@
 - [x] Configure deterministic INFO+ runtime logging only for `--start`; reject DEBUG before network.
 - [x] Recover both failed and clean gateway exits with bounded systemd restart frequency.
 - [x] Document the Git/external-input deployment boundary and first-snapshot bootstrap without installing or starting the service.
+- [x] Add a credential-free, SDK-free `--check-local` action for deployment storage readiness.
 
 ## First minimum change
 - Files: `tests/test_official_qq_scheduler.py`, then `bot_official_qq/scheduler.py`.

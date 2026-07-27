@@ -26,6 +26,7 @@ from bot_official_qq.runtime import (  # noqa: E402
     OfficialRuntimeConfig,
     OfficialRuntimeConfigError,
     build_local_storage_readiness,
+    check_official_qq_local_readiness,
     create_botpy_client,
     preflight_official_qq_bot,
     run_official_qq_bot,
@@ -188,6 +189,65 @@ class OfficialRuntimeConfigTests(TestCase):
 
 
 class OfficialRuntimeStorageReadinessTests(TestCase):
+    def test_credential_free_check_builds_disabled_local_config(self):
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            database = root / "bot.sqlite3"
+            relationship_state = root / "relationship" / "state.json"
+            database.touch()
+            storage_probe = Mock(
+                return_value={
+                    "database": {
+                        "checked": True,
+                        "readable": True,
+                        "writable": True,
+                    },
+                    "stars_cup": {"checked": True},
+                }
+            )
+            summary = check_official_qq_local_readiness(
+                {
+                    "OFFICIAL_QQ_DATABASE_PATH": str(database),
+                    "OFFICIAL_QQ_STARS_CUP_SCHEDULE_ENABLED": "true",
+                    "OFFICIAL_QQ_STARS_CUP_RELATIONSHIP_STATE_PATH": (
+                        str(relationship_state)
+                    ),
+                },
+                storage_probe=storage_probe,
+            )
+
+        config = storage_probe.call_args.args[0]
+        self.assertFalse(config.enabled)
+        self.assertEqual(config.app_id, "")
+        self.assertEqual(config.app_secret, "")
+        self.assertEqual(config.database_path, database.resolve())
+        self.assertTrue(config.stars_cup_schedule_enabled)
+        self.assertEqual(
+            config.stars_cup_relationship_state_path,
+            relationship_state.resolve(),
+        )
+        self.assertEqual(
+            summary,
+            {
+                "network_started": False,
+                "credentials_checked": False,
+                "sdk_checked": False,
+                "stars_cup_schedule_requested": True,
+                "local_storage": storage_probe.return_value,
+            },
+        )
+        self.assertNotIn(str(root), str(summary))
+
+    def test_credential_free_check_rejects_missing_database(self):
+        missing = Path("/not/a/real/official-qq.sqlite3")
+        with self.assertRaises(OfficialRuntimeConfigError) as raised:
+            check_official_qq_local_readiness(
+                {"OFFICIAL_QQ_DATABASE_PATH": str(missing)}
+            )
+
+        self.assertEqual(raised.exception.code, "database_missing")
+        self.assertNotIn(str(missing), str(raised.exception))
+
     def test_storage_readiness_reports_booleans_without_paths(self):
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

@@ -3,10 +3,12 @@
 ## ALLOWED TO MODIFY
 - `bot_official_qq/relationship_state.py` as one focused new transport-local module.
 - `bot_official_qq/runtime.py` for lifecycle callbacks and redacted preflight evidence.
+- `scripts/run_official_qq_bot.py` for guarded local/config/preflight/start action selection.
 - `bot_official_qq/scheduler.py` for relationship gating, reconciliation and exception classification.
 - `.env.bot.example` only for disabled-by-default local state-path configuration if needed.
 - `docs/README.md` for offline/real evidence wording and rollback operations.
-- Focused tests in `tests/test_official_qq_relationship_state.py`, `tests/test_official_qq_runtime.py`, `tests/test_official_qq_scheduler.py` and `tests/test_official_qq_app.py`.
+- `deploy/systemd/` for secret-free templates and deployment preparation documentation.
+- Focused tests in `tests/test_official_qq_relationship_state.py`, `tests/test_official_qq_runtime.py`, `tests/test_official_qq_scheduler.py`, `tests/test_official_qq_entrypoint.py` and `tests/test_official_qq_app.py`.
 - This `plan/stars-cup-official-qq-bot/` package.
 
 ## FORBIDDEN

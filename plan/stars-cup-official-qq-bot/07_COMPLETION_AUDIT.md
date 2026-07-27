@@ -31,6 +31,7 @@ login, send or platform inspection occurred.
 | Runtime evidence is journal-visible by default | entrypoint logging tests | start-only forced INFO handler; DEBUG/invalid values blocked before network | Confirmed offline |
 | Clean gateway exit is recoverable | unit template test and static parse | `Restart=always`, 15-second delay, 5 starts per 5 minutes | Confirmed as template |
 | Fresh deployment inputs are explicit | `deploy/systemd/README.md`, defaults and Git index | production DB/roster/background/latest are external; first snapshot is generated before enabled preflight | Confirmed as runbook |
+| Local deployment can be checked before credentials | `--check-local`, runtime/entrypoint tests | no enable flag, AppID, AppSecret, OpenID or SDK; boolean-only storage result | Confirmed offline |
 | Real QQ permissions exist | no platform access/authorization | no external evidence | UNKNOWN |
 | Target bot is in group and accepts active messages | relationship callbacks/state exist, but no authorized runtime event was observed | offline code cannot prove current platform state | UNKNOWN |
 | Real platform accepts both images | no authorized send | fake receipts only | UNKNOWN |
@@ -74,6 +75,9 @@ login, send or platform inspection occurred.
     clone does not contain the production DB, formal roster, sibling background
     or prior latest artifacts, so the first no-send daily export must precede
     an enabled scheduler preflight.
+14. A separate `--check-local` action now reuses the no-write storage probe
+    before runtime configuration, so operators can validate deployment files
+    and directories without credentials, SDK construction or network access.
 
 ## Safety conclusion
 

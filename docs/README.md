@@ -97,7 +97,22 @@
 ```
 
 凭据必须由进程环境或服务管理器的私有 `EnvironmentFile` 注入；入口不会
-自动读取 `.env` 或 `.env.bot.secret`。先执行只读检查：
+自动读取 `.env` 或 `.env.bot.secret`。在取得凭据前，可以先用
+`--check-local` 检查 SQLite 文件及父目录；一次性设置
+`OFFICIAL_QQ_STARS_CUP_SCHEDULE_ENABLED=true` 时还会检查名单、背景、
+Verse 缓存、关系状态与调度状态目录和榜图导出目录。该操作不要求启用标志、
+AppID、AppSecret 或 OpenID，不导入 SDK、不读取 SQLite 内容、不写探针文件，
+输出也不包含路径：
+
+```bash
+OFFICIAL_QQ_DATABASE_PATH=data/testing.db \
+OFFICIAL_QQ_STARS_CUP_SCHEDULE_ENABLED=true \
+./.venv/bin/python scripts/run_official_qq_bot.py --check-local
+```
+
+这里的 `data/testing.db` 仅用于本地测试；部署主机应传入正式 SQLite 的绝对
+路径。`local_ready` 只覆盖输出中已标为 `checked` 的本地项目。取得获准的
+环境值后，再执行完整配置检查：
 
 ```bash
 ./.venv/bin/python scripts/run_official_qq_bot.py --check-config

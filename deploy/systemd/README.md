@@ -32,8 +32,20 @@ enable、start 服务，也不连接真实 QQ。
 5. 保持环境副本中的 `OFFICIAL_QQ_BOT_ENABLED=false` 和
    `OFFICIAL_QQ_STARS_CUP_SCHEDULE_ENABLED=false`。
 
-此时可以运行现有离线测试，但不能使用默认关闭的环境模板执行官方
-`--preflight`；该入口会按设计要求启用标志、数据库和占位凭据齐全。
+此时可以运行现有离线测试，并用一次性环境值检查全部本地输入。这个动作
+不要求启用标志、AppID、AppSecret 或 OpenID，不导入 SDK，不读取 SQLite
+内容，也不创建探针文件：
+
+```bash
+OFFICIAL_QQ_DATABASE_PATH=/opt/2048-event/赛事中台/data/tournament_hub.sqlite3 \
+OFFICIAL_QQ_STARS_CUP_SCHEDULE_ENABLED=true \
+OFFICIAL_QQ_STARS_CUP_RELATIONSHIP_STATE_PATH=/opt/2048-event/赛事中台/data/tmp/stars_cup_bot/official_target_relationship.json \
+./.venv/bin/python scripts/run_official_qq_bot.py --check-local
+```
+
+`local_ready` 只证明输出中已标为 `checked` 的本地文件和目录就绪，不证明
+latest 快照、SDK、凭据或平台权限。默认关闭的环境模板仍不能直接执行官方
+`--preflight`；该入口会按设计要求启用标志、数据库和凭据齐全。
 
 ## 首次 latest 快照 bootstrap
 
