@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest import IsolatedAsyncioTestCase, main
@@ -880,6 +880,11 @@ class OfficialQQAppTests(IsolatedAsyncioTestCase):
         flow_key = "qq_official:{}".format(user_openid)
         bot_business.PENDING_FLOWS.pop(flow_key, None)
         try:
+            fixture_anchor = (datetime.now(LOCAL_TIMEZONE) - timedelta(days=2)).replace(
+                minute=0,
+                second=0,
+                microsecond=0,
+            )
             with fresh_test_connection() as connection:
                 player_id = self._seed_bound_user(
                     connection,
@@ -909,16 +914,22 @@ class OfficialQQAppTests(IsolatedAsyncioTestCase):
                             (SELECT id FROM variants WHERE code = '4x4'),
                             'single_attempt', 'classic_raw_score',
                             'finished', 1, 0, ?, ?,
-                            '2026-07-26 00:00:00',
-                            '2026-07-26 00:00:00'
+                            ?,
+                            ?
                         )
                         """,
                         (
                             event_id,
                             event_code,
                             event_name,
-                            "2026-07-26 {:02d}:00:00".format(hour),
-                            "2026-07-26 {:02d}:30:00".format(hour),
+                            (fixture_anchor + timedelta(hours=hour)).strftime(
+                                "%Y-%m-%d %H:%M:%S"
+                            ),
+                            (fixture_anchor + timedelta(hours=hour, minutes=30)).strftime(
+                                "%Y-%m-%d %H:%M:%S"
+                            ),
+                            fixture_anchor.strftime("%Y-%m-%d %H:%M:%S"),
+                            fixture_anchor.strftime("%Y-%m-%d %H:%M:%S"),
                         ),
                     )
                     connection.execute(
@@ -929,10 +940,15 @@ class OfficialQQAppTests(IsolatedAsyncioTestCase):
                         )
                         VALUES (
                             ?, ?, ?, 'official_fixture', 'active', '{}',
-                            '2026-07-26 00:00:00'
+                            ?
                         )
                         """,
-                        (996200 + index, event_id, player_id),
+                        (
+                            996200 + index,
+                            event_id,
+                            player_id,
+                            fixture_anchor.strftime("%Y-%m-%d %H:%M:%S"),
+                        ),
                     )
 
                 events = await process_official_event(
@@ -1021,6 +1037,9 @@ class OfficialQQAppTests(IsolatedAsyncioTestCase):
         final_payload = early_payload + b"-completed"
         bot_business.PENDING_FLOWS.pop(flow_key, None)
         try:
+            fixture_now = datetime.now(LOCAL_TIMEZONE).replace(microsecond=0)
+            fixture_start = fixture_now - timedelta(hours=1)
+            fixture_end = fixture_now + timedelta(hours=1)
             with TemporaryDirectory() as temp_dir, fresh_test_connection() as connection:
                 temp_root = Path(temp_dir)
                 connection.execute(
@@ -1077,10 +1096,16 @@ class OfficialQQAppTests(IsolatedAsyncioTestCase):
                         (SELECT id FROM platforms WHERE code = '2048verse'),
                         (SELECT id FROM variants WHERE code = '4x4'),
                         'single_attempt', 'classic_raw_score', 'active', 1, 0,
-                        '2026-07-26 08:00:00', '2026-07-28 08:00:00',
-                        '2026-07-27 08:00:00', '2026-07-27 08:00:00'
+                        ?, ?,
+                        ?, ?
                     )
-                    """
+                    """,
+                    (
+                        fixture_start.strftime("%Y-%m-%d %H:%M:%S"),
+                        fixture_end.strftime("%Y-%m-%d %H:%M:%S"),
+                        fixture_now.strftime("%Y-%m-%d %H:%M:%S"),
+                        fixture_now.strftime("%Y-%m-%d %H:%M:%S"),
+                    ),
                 )
                 connection.execute(
                     """
