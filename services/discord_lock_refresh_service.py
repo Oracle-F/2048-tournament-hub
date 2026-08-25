@@ -554,7 +554,7 @@ def _in_event_window(ended_at_dt, event_start_dt, event_end_dt):
         return False
     if event_start_dt is not None and ended_at_dt < event_start_dt:
         return False
-    if event_end_dt is not None and ended_at_dt > event_end_dt:
+    if event_end_dt is not None and ended_at_dt >= event_end_dt:
         return False
     return True
 

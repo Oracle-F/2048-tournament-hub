@@ -208,8 +208,8 @@ def _validate_roster(roster: dict) -> dict:
         raise ValueError("群星杯名单缺少 competition 配置")
     event_start = _parse_local_datetime(competition.get("start_time"), "比赛开始时间")
     event_end = _parse_local_datetime(competition.get("end_time"), "比赛结束时间")
-    if event_end < event_start:
-        raise ValueError("比赛结束时间不能早于开始时间")
+    if event_end <= event_start:
+        raise ValueError("比赛结束时间必须晚于开始时间")
     try:
         required_games = int(roster.get("required_games") or 3)
     except (TypeError, ValueError) as exc:
@@ -286,7 +286,7 @@ def _validate_roster(roster: dict) -> dict:
                 if started_at and ended_at and started_at > ended_at:
                     raise ValueError("{} 的人工成绩开始时间晚于结束时间".format(username))
                 for timestamp in (started_at, ended_at):
-                    if timestamp and not event_start <= timestamp <= event_end:
+                    if timestamp and not event_start <= timestamp < event_end:
                         raise ValueError("{} 的人工成绩时间不在比赛时间内".format(username))
         if tiers != expected_tiers:
             missing = sorted(expected_tiers - tiers)
@@ -358,7 +358,7 @@ def roster_from_xlsx(path: Path) -> dict:
             "title": "群星杯 · 2026 4×4 团体赛",
             "subtitle": "2026.07.27 — 08.24 · 2048 4×4 团体赛",
             "start_time": "2026-07-27 00:00:00+08:00",
-            "end_time": "2026-08-24 23:59:59+08:00",
+            "end_time": "2026-08-24T00:00:00+08:00",
         },
         "as_of": "",
         "required_games": 3,
@@ -475,7 +475,7 @@ def supplement_manual_record(
     event_start = _parse_local_datetime(competition["start_time"], "比赛开始时间")
     event_end = _parse_local_datetime(competition["end_time"], "比赛结束时间")
     for timestamp in (parsed_started, parsed_ended):
-        if timestamp and not event_start <= timestamp <= event_end:
+        if timestamp and not event_start <= timestamp < event_end:
             raise ValueError("人工成绩时间不在比赛时间内")
     duplicate_key = (score, board_sum, started_at or "", ended_at or "")
     for existing in target.get("manual_records") or []:
@@ -836,6 +836,24 @@ def _upgrade_live_cache(payload: dict, expected: dict) -> dict | None:
     return upgraded
 
 
+def _cache_records_fit_end(payload: dict, event_end: datetime) -> bool:
+    """Confirm every cached record is strictly before a migrated event end."""
+
+    players = payload.get("players")
+    if not isinstance(players, dict):
+        return False
+    for entry in players.values():
+        if not isinstance(entry, dict) or not isinstance(entry.get("records"), list):
+            return False
+        for record in entry["records"]:
+            if not isinstance(record, dict):
+                return False
+            ended_at = _record_end_time(record)
+            if ended_at is None or ended_at >= event_end:
+                return False
+    return True
+
+
 def _load_live_cache(path: Path | None, competition: dict) -> dict:
     expected = _empty_live_cache(competition)
     if path is None or not path.exists():
@@ -855,10 +873,20 @@ def _load_live_cache(path: Path | None, competition: dict) -> dict:
             return upgraded
         print("[缓存] 版本不匹配，将完整刷新。")
         return expected
-    for key in ("competition_code", "variant", "start_time", "end_time"):
-        if payload.get(key) != expected.get(key):
-            print("[缓存] 比赛配置已变化，将完整刷新。")
+    identity_keys = ("competition_code", "variant", "start_time")
+    if all(payload.get(key) == expected.get(key) for key in identity_keys):
+        if payload.get("end_time") != expected.get("end_time"):
+            new_end = _cache_datetime(expected.get("end_time"))
+            if new_end is not None and _cache_records_fit_end(payload, new_end):
+                migrated = dict(payload)
+                migrated["end_time"] = expected["end_time"]
+                print("[缓存] 仅比赛结束边界变化；已保留原玩家记录、查询历史和 exclusions。")
+                return migrated
+            print("[缓存] 结束边界变化且旧记录无法确认均在新边界前，将完整刷新。")
             return expected
+    else:
+        print("[缓存] 比赛配置已变化，将完整刷新。")
+        return expected
     if not isinstance(payload.get("players"), dict):
         return expected
     if not isinstance(payload.get("query_history"), list):
@@ -904,7 +932,7 @@ def _merge_live_records(
         if record_id not in (None, "") and str(record_id) in excluded:
             continue
         ended_at = _record_end_time(record)
-        if ended_at is None or ended_at < event_start or ended_at > event_end:
+        if ended_at is None or ended_at < event_start or ended_at >= event_end:
             continue
         merged[_record_identity(record)] = dict(record)
     return sorted(
@@ -1161,11 +1189,19 @@ def _query_live_records_from_roster(
                 completed += 1
                 try:
                     refreshed = future.result()
+                    # ``query_end`` is the current-time cutoff, so a record
+                    # ending exactly at that instant is observable.  Keep the
+                    # competition's real end boundary half-open.
+                    merge_end = (
+                        query_end
+                        if query_end >= end
+                        else query_end + timedelta(microseconds=1)
+                    )
                     normalized = _merge_live_records(
                         cached_records,
                         refreshed,
                         start,
-                        query_end,
+                        merge_end,
                         excluded_record_ids=excluded_record_ids,
                     )
                 except Exception as exc:

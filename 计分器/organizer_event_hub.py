@@ -344,7 +344,7 @@ def get_event_runtime_status(row):
     end_time = parse_event_time(row["end_time"])
     if start_time and now < start_time:
         return "待开始"
-    if end_time and now > end_time:
+    if end_time and now >= end_time:
         return "已完赛"
     if start_time or end_time:
         return "进行中"
@@ -2672,7 +2672,7 @@ def refresh_scores_from_verse(connection, event_code):
                 continue
             if candidate_time < start_dt:
                 continue
-            if end_dt is not None and candidate_time > end_dt:
+            if end_dt is not None and candidate_time >= end_dt:
                 continue
             scanned += 1
             score_value = int(game.get("score") or 0)

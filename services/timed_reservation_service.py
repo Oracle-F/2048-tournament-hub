@@ -672,7 +672,7 @@ def settle_due_reservations(connection, *, event_code=None):
             game_end = get_game_end_time(game) or game_start
             if game_start is None or game_end is None:
                 continue
-            if game_start < start_dt or game_end > end_dt:
+            if game_start < start_dt or game_start >= end_dt or game_end < start_dt or game_end >= end_dt:
                 continue
             raw_score = _extract_game_score(game)
             if raw_score is None:

@@ -37,6 +37,28 @@ class _Connection:
 
 
 class OrganizerTimedScoringTests(TestCase):
+    def test_game_window_is_half_open_at_end(self):
+        start_time = datetime.fromisoformat("2026-07-27T00:00:00+08:00")
+        end_time = datetime.fromisoformat("2026-08-24T00:00:00+08:00")
+        at_end = {
+            "played_at": "2026-08-24T00:00:00+08:00",
+            "started_at": "2026-08-23T23:59:59+08:00",
+        }
+        before_end = {
+            "played_at": "2026-08-23T23:59:59.999999+08:00",
+            "started_at": "2026-08-23T23:59:59+08:00",
+        }
+
+        result = organizer.score_games(
+            "alice",
+            "Alice",
+            "2x4",
+            [at_end, before_end],
+            start_time,
+            end_time,
+        )
+        self.assertEqual(result.all_window_game_count, 1)
+
     def test_historical_api_string_ids_are_scored(self):
         snapshot = WORKSPACE_ROOT / "赛事中台" / "tests" / "api_snapshots" / "player_profile_response_2x4.json"
         games = json.loads(snapshot.read_text(encoding="utf-8"))["games"]

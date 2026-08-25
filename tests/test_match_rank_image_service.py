@@ -4,6 +4,7 @@ import json
 import math
 import sys
 import tempfile
+from datetime import datetime, timedelta
 from pathlib import Path
 from unittest import TestCase, main
 
@@ -246,6 +247,36 @@ class MatchRankImageServiceTests(TestCase):
         self.assertEqual(player["_all_scores"], [300, 200, 100, 50])
         self.assertAlmostEqual(player["rating"], expected)
 
+    def test_roster_records_use_half_open_end_boundary(self):
+        end = datetime.fromisoformat("2026-08-24T00:00:00+08:00")
+        before_end = (end - timedelta(microseconds=1)).isoformat()
+        records = {
+            "player": [
+                {
+                    "score": 300,
+                    "board_sum": 30,
+                    "started_at": before_end,
+                    "ended_at": before_end,
+                },
+                {
+                    "score": 999,
+                    "board_sum": 99,
+                    "started_at": end.isoformat(),
+                    "ended_at": end.isoformat(),
+                },
+            ]
+        }
+
+        player = _build_roster_player(
+            {"username": "player"},
+            records,
+            datetime.fromisoformat("2026-07-27T00:00:00+08:00"),
+            end,
+            required_games=3,
+        )
+
+        self.assertEqual(player["top_scores"], [300])
+
     def test_missing_board_sum_in_a_score_selected_game_does_not_publish_partial_total(self):
         records = {
             "player": [
@@ -284,7 +315,7 @@ class MatchRankImageServiceTests(TestCase):
                 "code": "annual_4x4_2026",
                 "title": "群星杯",
                 "start_time": "2026-07-27T00:00:00+08:00",
-                "end_time": "2026-08-24T23:59:59+08:00",
+                "end_time": "2026-08-24T00:00:00+08:00",
             },
             "required_games": 3,
             "teams": [

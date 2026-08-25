@@ -213,7 +213,7 @@ def build_event_info(variant, start_time, duration, seal_time=None):
 def get_status_text(now, start_time, end_time, duration):
     if now < start_time:
         return "未开始 {}".format(format_clock(start_time - now))
-    if now <= end_time:
+    if now < end_time:
         return "进行中 {} / {}".format(format_clock(now - start_time), format_clock(duration))
     return "已结束"
 
@@ -221,7 +221,7 @@ def get_status_text(now, start_time, end_time, duration):
 def get_remaining_time_text(now, start_time, end_time):
     if now < start_time:
         return "--"
-    if now <= end_time:
+    if now < end_time:
         return format_clock(end_time - now)
     return "00:00:00"
 
@@ -400,9 +400,9 @@ def game_is_within_window(game, start_time, end_time):
         return False, None, None
 
     start_dt = get_game_start_time(game)
-    if end_dt < start_time or end_dt > end_time:
+    if end_dt < start_time or end_dt >= end_time:
         return False, start_dt, end_dt
-    if start_dt is not None and start_dt < start_time:
+    if start_dt is not None and (start_dt < start_time or start_dt >= end_time):
         return False, start_dt, end_dt
     return True, start_dt, end_dt
 

@@ -139,7 +139,9 @@ def is_record_within_event_window(record, start_dt, end_dt):
         if record_start is None or record_start < start_dt:
             return False
     if end_dt is not None:
-        if record_end is None or record_end > end_dt:
+        if record_end is None or record_end >= end_dt:
+            return False
+        if record_start is not None and record_start >= end_dt:
             return False
     return True
 

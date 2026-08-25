@@ -390,7 +390,7 @@ def _runtime_status_label(row):
     end_time = _parse_local_time(_row_get(row, "end_time"))
     if start_time and now < start_time:
         return "待开始"
-    if end_time and now > end_time:
+    if end_time and now >= end_time:
         return "已结束"
     if start_time or end_time:
         return "进行中"

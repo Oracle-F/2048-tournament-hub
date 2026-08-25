@@ -313,7 +313,7 @@ def _normalize_snapshot(snapshot: dict[str, Any]) -> dict[str, Any]:
     event.setdefault("subtitle", "2026.07.27 — 08.24 · 2048 4×4 团体赛")
     event.setdefault("as_of", _now_local().strftime("%Y-%m-%d %H:%M:%S"))
     event.setdefault("start_time", "2026-07-27 00:00:00")
-    event.setdefault("end_time", "2026-08-24 23:59:59")
+    event.setdefault("end_time", "2026-08-24T00:00:00+08:00")
 
     required_games = int(data.get("required_games") or DEFAULT_REQUIRED_GAMES)
     data["required_games"] = required_games
@@ -891,7 +891,7 @@ def _top_records_by_roster_account(
             or started < start
             or ended < start
             or started > end
-            or ended > end
+            or ended >= end
         ):
             continue
         score = _number(row["final_score"] if row["final_score"] is not None else row["raw_score"])
@@ -933,7 +933,7 @@ def _build_roster_player(
             continue
         if start and (started < start or ended < start):
             continue
-        if end and (started > end or ended > end):
+        if end and (started >= end or ended >= end):
             continue
         score = _number(record.get("score"))
         if score is None or score < 0:
@@ -952,11 +952,11 @@ def _build_roster_player(
             continue
         if started is not None and start and started < start:
             continue
-        if started is not None and end and started > end:
+        if started is not None and end and started >= end:
             continue
         if ended is not None and start and ended < start:
             continue
-        if ended is not None and end and ended > end:
+        if ended is not None and end and ended >= end:
             continue
         score = _number(record.get("score"))
         board_sum = _number(record.get("board_sum"))

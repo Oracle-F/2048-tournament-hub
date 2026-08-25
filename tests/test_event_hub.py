@@ -20,6 +20,7 @@ from event_hub import (  # noqa: E402
     LiveFetchError,
     _interactive_menu,
     _load_cached_live_records,
+    _load_live_cache,
     _query_live_records_from_roster,
     _select_live_query_window,
     roster_from_xlsx,
@@ -78,7 +79,7 @@ def _small_live_roster() -> dict:
         "competition": {
             "code": "annual_4x4_2026",
             "start_time": "2026-07-27 00:00:00+08:00",
-            "end_time": "2026-08-24 23:59:59+08:00",
+            "end_time": "2026-08-24T00:00:00+08:00",
         },
         "teams": [
             {
@@ -268,6 +269,21 @@ class EventHubRosterTests(TestCase):
         self.assertEqual(record["started_at"], game["played_at"])
         self.assertEqual(record["ended_at"], game["played_at"])
 
+    def test_live_record_window_is_half_open_at_end(self):
+        start = event_hub._parse_event_datetime("2026-07-27T00:00:00+08:00")
+        end = event_hub._parse_event_datetime("2026-08-24T00:00:00+08:00")
+        accepted = _normalized_record("before-end", "2026-08-23T23:59:59.999999+08:00")
+        rejected = _normalized_record("at-end", "2026-08-24T00:00:00+08:00")
+
+        merged = event_hub._merge_live_records(
+            [],
+            [accepted, rejected],
+            start,
+            end,
+        )
+
+        self.assertEqual([record["record_id"] for record in merged], ["before-end"])
+
     def test_in_window_game_with_broken_board_fails_instead_of_silently_disappearing(self):
         game = {
             "id": "broken-game",
@@ -305,7 +321,7 @@ class EventHubRosterTests(TestCase):
 
     def test_query_window_uses_23_5_hour_threshold(self):
         event_start = event_hub._parse_event_datetime("2026-07-27T00:00:00+08:00")
-        event_end = event_hub._parse_event_datetime("2026-08-24T23:59:59+08:00")
+        event_end = event_hub._parse_event_datetime("2026-08-24T00:00:00+08:00")
         cache = {"last_successful_query_at": "2026-08-02T12:00:00+08:00"}
 
         start, end, mode = _select_live_query_window(
@@ -681,6 +697,85 @@ class EventHubRosterTests(TestCase):
                     10,
                     ended_at="2026-07-26T23:59:00+08:00",
                 )
+
+    def test_manual_record_at_exact_end_is_rejected(self):
+        with tempfile.TemporaryDirectory(prefix="event-hub-roster-boundary-") as directory:
+            source = Path(directory) / "名单.xlsx"
+            output = Path(directory) / "roster.json"
+            _write_minimal_xlsx(source)
+            event_hub.import_roster(source, output)
+
+            with self.assertRaisesRegex(ValueError, "不在比赛时间内"):
+                event_hub.supplement_manual_record(
+                    output,
+                    "XLB",
+                    100,
+                    10,
+                    ended_at="2026-08-24T00:00:00+08:00",
+                )
+
+            event_hub.supplement_manual_record(
+                output,
+                "XLB",
+                101,
+                11,
+                ended_at="2026-08-23T23:59:59.999999+08:00",
+            )
+            saved = event_hub.json.loads(output.read_text(encoding="utf-8"))
+            self.assertEqual(saved["teams"][0]["players"][0]["manual_records"][-1]["score"], 101)
+
+    def test_end_only_cache_identity_migration_keeps_history_players_and_exclusions(self):
+        roster = _small_live_roster()
+        old_cache = event_hub._empty_live_cache(roster["competition"])
+        old_cache["end_time"] = "2026-08-24T23:59:59+08:00"
+        old_cache["last_successful_query_at"] = "2026-08-23T20:00:00+08:00"
+        old_cache["query_history"] = [{"mode": "full", "range_end": "2026-08-23T20:00:00+08:00"}]
+        old_cache["excluded_records"] = [{"record_id": "qumark-1751892", "reason": "started_before_event"}]
+        old_cache["players"] = {
+            "fastuser": {
+                "username": "FastUser",
+                "records": [_normalized_record("game-1", "2026-08-23T23:59:59.999999+08:00")],
+            }
+        }
+        with tempfile.TemporaryDirectory(prefix="event-hub-cache-boundary-") as directory:
+            cache_path = Path(directory) / "live-cache.json"
+            cache_path.write_text(event_hub.json.dumps(old_cache), encoding="utf-8")
+            loaded = _load_live_cache(
+                cache_path,
+                {
+                    **roster["competition"],
+                    "end_time": "2026-08-24T00:00:00+08:00",
+                },
+            )
+
+        self.assertEqual(loaded["end_time"], "2026-08-24T00:00:00+08:00")
+        self.assertEqual(loaded["players"], old_cache["players"])
+        self.assertEqual(loaded["query_history"], old_cache["query_history"])
+        self.assertEqual(loaded["excluded_records"], old_cache["excluded_records"])
+
+    def test_end_only_cache_migration_refuses_record_at_new_end(self):
+        roster = _small_live_roster()
+        old_cache = event_hub._empty_live_cache(roster["competition"])
+        old_cache["end_time"] = "2026-08-24T23:59:59+08:00"
+        old_cache["players"] = {
+            "fastuser": {
+                "username": "FastUser",
+                "records": [_normalized_record("game-1", "2026-08-24T00:00:00+08:00")],
+            }
+        }
+        with tempfile.TemporaryDirectory(prefix="event-hub-cache-boundary-reject-") as directory:
+            cache_path = Path(directory) / "live-cache.json"
+            cache_path.write_text(event_hub.json.dumps(old_cache), encoding="utf-8")
+            loaded = _load_live_cache(
+                cache_path,
+                {
+                    **roster["competition"],
+                    "end_time": "2026-08-24T00:00:00+08:00",
+                },
+            )
+
+        self.assertEqual(loaded["end_time"], "2026-08-24T00:00:00+08:00")
+        self.assertEqual(loaded["players"], {})
 
     def test_xlsx_import_rejects_non_sequential_tiers(self):
         with tempfile.TemporaryDirectory(prefix="event-hub-roster-") as directory:

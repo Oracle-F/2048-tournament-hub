@@ -269,7 +269,7 @@ def write_html(event_info, result, html_path):
             if (now < startMs) {{
                 document.getElementById("status-text").textContent = `未开始 ${{formatClockFromSeconds((startMs - now) / 1000)}}`;
                 document.getElementById("remaining-text").textContent = "--";
-            }} else if (now <= endMs) {{
+            }} else if (now < endMs) {{
                 document.getElementById("status-text").textContent = `进行中 ${{formatClockFromSeconds((now - startMs) / 1000)}} / ${{formatClockFromSeconds(durationSeconds)}}`;
                 document.getElementById("remaining-text").textContent = formatClockFromSeconds((endMs - now) / 1000);
             }} else {{

@@ -118,7 +118,7 @@ def event_info_is_active_or_soon(event_info):
     if event_info is None:
         return False
     now = now_local()
-    if event_info.start_time <= now <= event_info.end_time:
+    if event_info.start_time <= now < event_info.end_time:
         return True
     return now < event_info.start_time <= now + ACTIVE_SOON_WINDOW
 
@@ -129,7 +129,7 @@ def state_is_active_or_soon(state):
     end_time = parse_state_time(state.get("end_time"))
     if start_time is None or end_time is None:
         return False
-    if start_time <= now <= end_time:
+    if start_time <= now < end_time:
         return True
     return now < start_time <= now + ACTIVE_SOON_WINDOW
 
@@ -571,7 +571,7 @@ def write_html(event_info, players, live_results, display_results, notifications
             if (now < startMs) {{
                 statusText = `未开始 ${{formatClockFromSeconds((startMs - now) / 1000)}}`;
                 remainingText = "--";
-            }} else if (now <= endMs) {{
+            }} else if (now < endMs) {{
                 statusText = `进行中 ${{formatClockFromSeconds((now - startMs) / 1000)}} / ${{formatClockFromSeconds(durationSeconds)}}`;
                 remainingText = formatClockFromSeconds((endMs - now) / 1000);
             }}
