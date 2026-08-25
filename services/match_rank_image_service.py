@@ -938,14 +938,46 @@ def _build_roster_player(
         score = _number(record.get("score"))
         if score is None or score < 0:
             continue
-        candidates.append({**record, "score": score})
+        candidates.append(
+            {
+                **record,
+                "score": score,
+                "board_sum": _number(record.get("board_sum")),
+                "_candidate_origin": "verse",
+            }
+        )
     # Manual records are already event-verified input.  Timestamps are useful
     # when available, but are optional because a manual supplement may only
     # have the score and final board values.  If timestamps are present, keep
     # the same competition-window checks as queried records.
+    seen_manual_records: set[str] = set()
     for record in manual_records or []:
         if not isinstance(record, dict):
             continue
+        source = str(record.get("source") or "").strip()
+        status = str(record.get("status") or "").strip().casefold()
+        if source == "organizer_approved_screenshot" and status != "approved":
+            # Unlike legacy manual supplements, organizer screenshot evidence
+            # must explicitly carry organizer approval.  Missing/unknown
+            # status is not silently treated as approved.
+            continue
+        if not status:
+            # Legacy manual records predate status metadata; keep their
+            # historical behavior while the organizer source stays strict.
+            status = "approved"
+        if status in {"rejected", "superseded", "void", "inactive"} or record.get("superseded_by"):
+            # Keep superseded screenshot evidence in the roster for audit, but
+            # never count it alongside a later verified Verse record.
+            continue
+        source_record_id = record.get("source_record_id")
+        identity = (
+            "source_record_id:{}".format(source_record_id)
+            if source_record_id not in (None, "")
+            else "payload:{}".format(json.dumps(record, ensure_ascii=False, sort_keys=True))
+        )
+        if identity in seen_manual_records:
+            continue
+        seen_manual_records.add(identity)
         started = _parse_time(record.get("started_at"))
         ended = _parse_time(record.get("ended_at"))
         if started is not None and ended is not None and started > ended:
@@ -967,11 +999,36 @@ def _build_roster_player(
                 **record,
                 "score": score,
                 "board_sum": board_sum,
-                "source": "manual",
+                "source": source or "manual",
                 "started_at": record.get("started_at"),
                 "ended_at": record.get("ended_at"),
+                "_candidate_origin": "manual",
             }
         )
+
+    # A later Verse result with the exact same (score, board_sum) supersedes
+    # an organizer screenshot of that same game.  Keep the screenshot in the
+    # roster evidence ledger, but count the game only once.  Deliberately do
+    # not match on score alone: two games can share a score while having
+    # different board sums.
+    verse_exact = {
+        (item["score"], item.get("board_sum"))
+        for item in candidates
+        if item.get("_candidate_origin") == "verse"
+        and item.get("board_sum") is not None
+    }
+    if verse_exact:
+        candidates = [
+            item
+            for item in candidates
+            if not (
+                item.get("_candidate_origin") == "manual"
+                and item.get("source") == "organizer_approved_screenshot"
+                and str(item.get("status") or "").strip().casefold() == "approved"
+                and item.get("board_sum") is not None
+                and (item["score"], item.get("board_sum")) in verse_exact
+            )
+        ]
     candidates.sort(key=lambda item: (item["score"], item.get("ended_at") or ""), reverse=True)
     top = candidates[:required_games]
     board_values = [item["board_sum"] for item in top if item.get("board_sum") is not None]

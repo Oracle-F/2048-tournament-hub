@@ -680,6 +680,39 @@ class EventHubRosterTests(TestCase):
         self.assertEqual(len(xlb["manual_records"]), 1)
         self.assertEqual(xlb["manual_records"][0]["score"], 640)
 
+    def test_reimport_preserves_approved_screenshot_for_regular_player_and_deduplicates_source_id(self):
+        with tempfile.TemporaryDirectory(prefix="event-hub-roster-screenshot-") as directory:
+            source = Path(directory) / "名单.xlsx"
+            output = Path(directory) / "roster.json"
+            _write_minimal_xlsx(source)
+            event_hub.import_roster(source, output)
+            roster = event_hub._load_json(output)
+            regular = roster["teams"][0]["players"][1]
+            regular["manual_records"] = [
+                {
+                    "score": 100,
+                    "board_sum": 10,
+                    "source": "organizer_approved_screenshot",
+                    "source_record_id": "annual_4x4_2026:screenshot:A_2:abc",
+                    "evidence_sha256": "abc",
+                },
+                {
+                    "score": 101,
+                    "board_sum": 11,
+                    "source": "organizer_approved_screenshot",
+                    "source_record_id": "annual_4x4_2026:screenshot:A_2:abc",
+                    "evidence_sha256": "abc",
+                },
+            ]
+            event_hub.write_roster(roster, output, force=True)
+
+            refreshed, _ = event_hub.import_roster(source, output, force=True)
+
+        regular = refreshed["teams"][0]["players"][1]
+        self.assertEqual(len(regular["manual_records"]), 1)
+        self.assertEqual(regular["manual_records"][0]["source_record_id"], "annual_4x4_2026:screenshot:A_2:abc")
+        self.assertEqual(regular["manual_records"][0]["score"], 100)
+
     def test_manual_supplement_rejects_invalid_values_and_times(self):
         with tempfile.TemporaryDirectory(prefix="event-hub-roster-") as directory:
             source = Path(directory) / "名单.xlsx"

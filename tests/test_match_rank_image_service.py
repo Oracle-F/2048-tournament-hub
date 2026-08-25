@@ -309,6 +309,175 @@ class MatchRankImageServiceTests(TestCase):
                 event_info={},
             )
 
+    def test_superseded_screenshot_record_is_kept_for_audit_but_not_counted(self):
+        player = _build_roster_player(
+            {"username": "player"},
+            {
+                "player": [
+                    {
+                        "record_id": "verse-1",
+                        "score": 500,
+                        "board_sum": 50,
+                        "started_at": "2026-07-27 01:00:00",
+                        "ended_at": "2026-07-27 01:10:00",
+                    }
+                ]
+            },
+            start=None,
+            end=None,
+            required_games=3,
+            manual_records=[
+                {
+                    "score": 900,
+                    "board_sum": 90,
+                    "source": "organizer_approved_screenshot",
+                    "source_record_id": "screenshot-1",
+                    "superseded_by": "verse-2",
+                }
+            ],
+        )
+
+        self.assertEqual(player["top_scores"], [500])
+        self.assertEqual(player["games_seen"], 1)
+
+    def test_exact_verse_and_approved_screenshot_count_once_and_keep_evidence(self):
+        manual_records = [
+            {
+                "score": 500,
+                "board_sum": 50,
+                "source": "organizer_approved_screenshot",
+                "source_record_id": "screenshot-exact",
+                "status": "approved",
+            }
+        ]
+        player = _build_roster_player(
+            {"username": "player"},
+            {
+                "player": [
+                    {
+                        "record_id": "verse-exact",
+                        "score": 500,
+                        "board_sum": 50,
+                        "started_at": "2026-07-27 01:00:00",
+                        "ended_at": "2026-07-27 01:10:00",
+                    },
+                    {
+                        "record_id": "verse-other",
+                        "score": 400,
+                        "board_sum": 40,
+                        "started_at": "2026-07-27 02:00:00",
+                        "ended_at": "2026-07-27 02:10:00",
+                    },
+                ]
+            },
+            start=None,
+            end=None,
+            required_games=3,
+            manual_records=manual_records,
+        )
+
+        self.assertEqual(player["top_scores"], [500, 400])
+        self.assertEqual(player["games_seen"], 2)
+        self.assertEqual(manual_records[0]["source_record_id"], "screenshot-exact")
+
+    def test_screenshot_with_different_score_or_board_is_not_cross_source_deduped(self):
+        player = _build_roster_player(
+            {"username": "player"},
+            {
+                "player": [
+                    {
+                        "record_id": "verse-base",
+                        "score": 500,
+                        "board_sum": 50,
+                        "started_at": "2026-07-27 01:00:00",
+                        "ended_at": "2026-07-27 01:10:00",
+                    }
+                ]
+            },
+            start=None,
+            end=None,
+            required_games=3,
+            manual_records=[
+                {
+                    "score": 500,
+                    "board_sum": 51,
+                    "source": "organizer_approved_screenshot",
+                    "source_record_id": "screenshot-board-different",
+                    "status": "approved",
+                },
+                {
+                    "score": 501,
+                    "board_sum": 50,
+                    "source": "organizer_approved_screenshot",
+                    "source_record_id": "screenshot-score-different",
+                    "status": "approved",
+                },
+            ],
+        )
+
+        self.assertEqual(player["top_scores"], [501, 500, 500])
+        self.assertEqual(player["games_seen"], 3)
+
+    def test_regular_manual_record_is_not_cross_source_deduped(self):
+        player = _build_roster_player(
+            {"username": "player"},
+            {
+                "player": [
+                    {
+                        "record_id": "verse-base",
+                        "score": 500,
+                        "board_sum": 50,
+                        "started_at": "2026-07-27 01:00:00",
+                        "ended_at": "2026-07-27 01:10:00",
+                    }
+                ]
+            },
+            start=None,
+            end=None,
+            required_games=3,
+            manual_records=[{"score": 500, "board_sum": 50, "source": "manual"}],
+        )
+
+        self.assertEqual(player["top_scores"], [500, 500])
+        self.assertEqual(player["games_seen"], 2)
+
+    def test_unapproved_or_unknown_screenshot_status_is_not_counted(self):
+        player = _build_roster_player(
+            {"username": "player"},
+            {
+                "player": [
+                    {
+                        "record_id": "verse-base",
+                        "score": 500,
+                        "board_sum": 50,
+                        "started_at": "2026-07-27 01:00:00",
+                        "ended_at": "2026-07-27 01:10:00",
+                    }
+                ]
+            },
+            start=None,
+            end=None,
+            required_games=3,
+            manual_records=[
+                {
+                    "score": 900,
+                    "board_sum": 90,
+                    "source": "organizer_approved_screenshot",
+                    "source_record_id": "screenshot-missing-status",
+                },
+                {
+                    "score": 800,
+                    "board_sum": 80,
+                    "source": "organizer_approved_screenshot",
+                    "source_record_id": "screenshot-pending",
+                    "status": "pending",
+                },
+            ],
+        )
+
+        self.assertEqual(player["top_scores"], [500])
+        self.assertEqual(player["games_seen"], 1)
+
     def test_global_single_game_top_uses_all_games_not_only_each_players_top_three(self):
         roster = {
             "competition": {

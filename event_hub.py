@@ -407,21 +407,41 @@ def _merge_existing_manual_records(roster: dict, existing_path: Path) -> dict:
     if not existing_path.exists():
         return roster
     existing = _load_json(existing_path)
+
+    def is_organizer_screenshot(record: dict) -> bool:
+        return (
+            isinstance(record, dict)
+            and str(record.get("source") or "").strip()
+            == "organizer_approved_screenshot"
+        )
+
+    def record_identity(record: dict) -> str:
+        # Organizer-approved screenshots carry a stable source id.  Keep the
+        # old full-payload fallback for legacy XLB/manual entries that predate
+        # the idempotency field.
+        source_record_id = record.get("source_record_id") if isinstance(record, dict) else None
+        if source_record_id not in (None, ""):
+            return "source_record_id:{}".format(source_record_id)
+        return "payload:{}".format(json.dumps(record, ensure_ascii=False, sort_keys=True))
+
     old_records = {
-        str(player.get("username") or player.get("verse") or "").casefold(): list(player.get("manual_records") or [])
+        str(player.get("username") or player.get("verse") or "").casefold(): list(
+            player.get("manual_records") or []
+        )
         for team in existing.get("teams") or []
         for player in team.get("players") or []
         if player.get("manual_only")
+        or any(is_organizer_screenshot(record) for record in player.get("manual_records") or [])
     }
     for team in roster.get("teams") or []:
         for player in team.get("players") or []:
             key = str(player.get("username") or player.get("verse") or "").casefold()
-            if not player.get("manual_only") or key not in old_records:
+            if key not in old_records:
                 continue
             merged = []
             seen = set()
             for record in [*(old_records[key]), *(player.get("manual_records") or [])]:
-                identity = json.dumps(record, ensure_ascii=False, sort_keys=True)
+                identity = record_identity(record)
                 if identity in seen:
                     continue
                 seen.add(identity)
